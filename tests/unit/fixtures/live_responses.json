@@ -1,0 +1,609 @@
+{
+  "login": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "access_token": "<access-token>",
+      "refresh_token": "<refresh-token>",
+      "token_type": "Bearer",
+      "expires_in": 900
+    }
+  },
+  "envelope_data": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "success": true,
+      "message": "Fetched catalog",
+      "data": {
+        "@id": "urn:uuid:1dc45797-3333-4955-8baf-ab7fd66ac4d5",
+        "title": "Testcatalog - TRUEConnector team information",
+        "description": [
+          {
+            "value": "Sample connectorA catalog offering TRUEConnector team information",
+            "language": "en"
+          }
+        ],
+        "participantId": "urn:example:DataProviderA",
+        "keyword": [
+          "Employee",
+          "Information",
+          "Test",
+          "TRUEConnector team information",
+          "ConnectorA"
+        ],
+        "dataset": [
+          {
+            "@id": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5",
+            "title": "TRUEConnector team information dataset",
+            "description": [
+              {
+                "value": "Dataset offering TRUEConnector instance A team information",
+                "language": "en"
+              }
+            ],
+            "keyword": [
+              "Personal information",
+              "Employee",
+              "TRUEConnector team",
+              "REST"
+            ],
+            "distribution": [
+              {
+                "@id": "urn:uuid:1dc45797-pull-4932-8baf-ab7fd66ql4d5",
+                "format": "HttpData-PULL",
+                "accessService": {
+                  "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+                  "conformsTo": "DataService Specification 2025-1",
+                  "createdBy": "admin@mail.com",
+                  "creator": "Engineering Informatica S.p.A.",
+                  "description": [
+                    {
+                      "value": "DSP TRUEConnector service offering team information",
+                      "language": "en"
+                    }
+                  ],
+                  "endpointDescription": "connector",
+                  "endpointURL": "http://connector-a:8080/connector-a",
+                  "identifier": "DSP TRUE Connector Unique identifier for testing",
+                  "issued": "2024-04-23T16:26:00Z",
+                  "keyword": [
+                    "REST",
+                    "transfer"
+                  ],
+                  "lastModifiedBy": "admin@mail.com",
+                  "modified": "2024-04-23T16:26:00Z",
+                  "tenantId": "connector-a",
+                  "theme": [
+                    "Data"
+                  ],
+                  "title": "DSP TRUE Connector",
+                  "type": "DataService",
+                  "version": 0
+                },
+                "createdBy": "admin@mail.com",
+                "description": null,
+                "hasPolicy": null,
+                "issued": "2024-04-23T16:26:00Z",
+                "lastModifiedBy": "admin@mail.com",
+                "modified": "2024-04-23T16:26:00Z",
+                "tenantId": "connector-a",
+                "title": "HTTP Data PULL",
+                "type": "Distribution",
+                "version": 0
+              },
+              {
+                "@id": "urn:uuid:1dc45797-push-4932-8baf-ab7fd66ql4d5",
+                "format": "HttpData-PUSH",
+                "accessService": {
+                  "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+                  "conformsTo": "DataService Specification 2025-1",
+                  "createdBy": "admin@mail.com",
+                  "creator": "Engineering Informatica S.p.A.",
+                  "description": [
+                    {
+                      "value": "DSP TRUEConnector service offering team information",
+                      "language": "en"
+                    }
+                  ],
+                  "endpointDescription": "connector",
+                  "endpointURL": "http://connector-a:8080/connector-a",
+                  "identifier": "DSP TRUE Connector Unique identifier for testing",
+                  "issued": "2024-04-23T16:26:00Z",
+                  "keyword": [
+                    "REST",
+                    "transfer"
+                  ],
+                  "lastModifiedBy": "admin@mail.com",
+                  "modified": "2024-04-23T16:26:00Z",
+                  "tenantId": "connector-a",
+                  "theme": [
+                    "Data"
+                  ],
+                  "title": "DSP TRUE Connector",
+                  "type": "DataService",
+                  "version": 0
+                },
+                "createdBy": "admin@mail.com",
+                "description": null,
+                "hasPolicy": null,
+                "issued": "2024-04-23T16:26:00Z",
+                "lastModifiedBy": "admin@mail.com",
+                "modified": "2024-04-23T16:26:00Z",
+                "tenantId": "connector-a",
+                "title": "HTTP Data PUSH",
+                "type": "Distribution",
+                "version": 0
+              }
+            ],
+            "artifact": {
+              "id": "urn:uuid:fdc45798-a123-4955-8baf-vc3gh22qh3j8",
+              "artifactType": "FILE",
+              "filename": "ENG employee.json",
+              "value": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5",
+              "authorization": null,
+              "contentType": "application/json",
+              "created": "2024-12-10T16:04:59.358Z",
+              "lastModifiedDate": "2024-12-10T16:04:59.358Z",
+              "createdBy": "admin@mail.com",
+              "lastModifiedBy": "admin@mail.com",
+              "version": 0
+            },
+            "conformsTo": "Dataset Specification 2025-1",
+            "createdBy": "admin@mail.com",
+            "creator": "Engineering Informatica S.p.A.",
+            "hasPolicy": [
+              {
+                "@id": "urn:uuid:fdc45798-a123-4955-8baf-ab7fd66ac4d5",
+                "assignee": null,
+                "assigner": null,
+                "permission": [
+                  {
+                    "assigner": null,
+                    "assignee": null,
+                    "target": null,
+                    "action": "USE",
+                    "constraint": [
+                      {
+                        "leftOperand": "COUNT",
+                        "operator": "LTEQ",
+                        "rightOperand": "5"
+                      }
+                    ]
+                  }
+                ],
+                "target": null
+              }
+            ],
+            "identifier": "Unique identifier for test Dataset",
+            "issued": "2024-04-23T16:26:00Z",
+            "lastModifiedBy": "admin@mail.com",
+            "modified": "2024-04-23T16:26:00Z",
+            "tenantId": "connector-a",
+            "theme": [
+              "Data"
+            ],
+            "type": "Dataset",
+            "version": 0
+          }
+        ],
+        "distribution": [
+          {
+            "@id": "urn:uuid:1dc45797-pull-4932-8baf-ab7fd66ql4d5",
+            "format": "HttpData-PULL",
+            "accessService": {
+              "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+              "conformsTo": "DataService Specification 2025-1",
+              "createdBy": "admin@mail.com",
+              "creator": "Engineering Informatica S.p.A.",
+              "description": [
+                {
+                  "value": "DSP TRUEConnector service offering team information",
+                  "language": "en"
+                }
+              ],
+              "endpointDescription": "connector",
+              "endpointURL": "http://connector-a:8080/connector-a",
+              "identifier": "DSP TRUE Connector Unique identifier for testing",
+              "issued": "2024-04-23T16:26:00Z",
+              "keyword": [
+                "REST",
+                "transfer"
+              ],
+              "lastModifiedBy": "admin@mail.com",
+              "modified": "2024-04-23T16:26:00Z",
+              "tenantId": "connector-a",
+              "theme": [
+                "Data"
+              ],
+              "title": "DSP TRUE Connector",
+              "type": "DataService",
+              "version": 0
+            },
+            "createdBy": "admin@mail.com",
+            "description": null,
+            "hasPolicy": null,
+            "issued": "2024-04-23T16:26:00Z",
+            "lastModifiedBy": "admin@mail.com",
+            "modified": "2024-04-23T16:26:00Z",
+            "tenantId": "connector-a",
+            "title": "HTTP Data PULL",
+            "type": "Distribution",
+            "version": 0
+          },
+          {
+            "@id": "urn:uuid:1dc45797-push-4932-8baf-ab7fd66ql4d5",
+            "format": "HttpData-PUSH",
+            "accessService": {
+              "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+              "conformsTo": "DataService Specification 2025-1",
+              "createdBy": "admin@mail.com",
+              "creator": "Engineering Informatica S.p.A.",
+              "description": [
+                {
+                  "value": "DSP TRUEConnector service offering team information",
+                  "language": "en"
+                }
+              ],
+              "endpointDescription": "connector",
+              "endpointURL": "http://connector-a:8080/connector-a",
+              "identifier": "DSP TRUE Connector Unique identifier for testing",
+              "issued": "2024-04-23T16:26:00Z",
+              "keyword": [
+                "REST",
+                "transfer"
+              ],
+              "lastModifiedBy": "admin@mail.com",
+              "modified": "2024-04-23T16:26:00Z",
+              "tenantId": "connector-a",
+              "theme": [
+                "Data"
+              ],
+              "title": "DSP TRUE Connector",
+              "type": "DataService",
+              "version": 0
+            },
+            "createdBy": "admin@mail.com",
+            "description": null,
+            "hasPolicy": null,
+            "issued": "2024-04-23T16:26:00Z",
+            "lastModifiedBy": "admin@mail.com",
+            "modified": "2024-04-23T16:26:00Z",
+            "tenantId": "connector-a",
+            "title": "HTTP Data PUSH",
+            "type": "Distribution",
+            "version": 0
+          }
+        ],
+        "service": [
+          {
+            "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+            "conformsTo": "DataService Specification 2025-1",
+            "createdBy": "admin@mail.com",
+            "creator": "Engineering Informatica S.p.A.",
+            "description": [
+              {
+                "value": "DSP TRUEConnector service offering team information",
+                "language": "en"
+              }
+            ],
+            "endpointDescription": "connector",
+            "endpointURL": "http://connector-a:8080/connector-a",
+            "identifier": "DSP TRUE Connector Unique identifier for testing",
+            "issued": "2024-04-23T16:26:00Z",
+            "keyword": [
+              "REST",
+              "transfer"
+            ],
+            "lastModifiedBy": "admin@mail.com",
+            "modified": "2024-04-23T16:26:00Z",
+            "tenantId": "connector-a",
+            "theme": [
+              "Data"
+            ],
+            "title": "DSP TRUE Connector",
+            "type": "DataService",
+            "version": 0
+          }
+        ],
+        "conformsTo": "Catalog Specification 2025-1",
+        "createdBy": "admin@mail.com",
+        "creator": "Engineering Informatica S.p.A.",
+        "hasPolicy": null,
+        "identifier": "Unique identifier for test ConnectorA Catalog",
+        "issued": "2024-04-23T16:26:00Z",
+        "lastModifiedBy": "admin@mail.com",
+        "modified": "2026-10-27T08:26:10.929Z",
+        "tenantId": "connector-a",
+        "theme": [
+          "Data"
+        ],
+        "type": "Catalog",
+        "version": 6
+      },
+      "timestamp": "2026-10-27T08:26:12Z"
+    }
+  },
+  "envelope_no_data": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "success": true,
+      "message": "Data service deleted successfully",
+      "timestamp": "2026-10-27T08:26:11Z"
+    }
+  },
+  "paged": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "response": {
+        "success": true,
+        "message": "Contract negotiation - Page 0 of 29, Size: 2, Sort: timestamp: DESC, Filters: []",
+        "data": {
+          "links": [
+            {
+              "rel": "first",
+              "href": "http://localhost:8080/api/v1/negotiations?page=0&size=2&sort=timestamp,desc"
+            },
+            {
+              "rel": "self",
+              "href": "http://localhost:8080/api/v1/negotiations?page=0&size=2&sort=timestamp,desc"
+            },
+            {
+              "rel": "next",
+              "href": "http://localhost:8080/api/v1/negotiations?page=1&size=2&sort=timestamp,desc"
+            },
+            {
+              "rel": "last",
+              "href": "http://localhost:8080/api/v1/negotiations?page=28&size=2&sort=timestamp,desc"
+            }
+          ],
+          "content": [
+            {
+              "links": [
+                {
+                  "rel": "self",
+                  "href": "http://localhost:8080/api/v1/negotiations/urn%3Auuid%3A0f4c853d-c68a-40f7-9202-1f3e8d07e85b"
+                }
+              ],
+              "@id": "urn:uuid:0f4c853d-c68a-40f7-9202-1f3e8d07e85b",
+              "consumerPid": "urn:uuid:52a1265a-842d-43df-9037-36aa6d556a3c",
+              "providerPid": "urn:uuid:f300ca68-688e-44fb-aa88-c43b517e07fd",
+              "agreement": {
+                "technicalId": "6ad0d1cade30beee489952b4",
+                "assigner": "urn:example:DataProviderA",
+                "assignee": "http://connector-a:8080/connector-a/consumer",
+                "target": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5",
+                "timestamp": "2026-10-15T13:14:49.681316275Z",
+                "permission": [
+                  {
+                    "assigner": null,
+                    "assignee": null,
+                    "target": null,
+                    "action": "USE",
+                    "constraint": [
+                      {
+                        "leftOperand": "COUNT",
+                        "operator": "LTEQ",
+                        "rightOperand": "5"
+                      }
+                    ]
+                  }
+                ],
+                "tenantId": "connector-a",
+                "type": "Agreement",
+                "@id": "urn:uuid:edca8bf4-3d17-4f76-9acc-1c29d88e6dea"
+              },
+              "assigner": "urn:example:DataProviderA",
+              "callbackAddress": "http://connector-b:8080/connector-b",
+              "created": "2026-10-15T13:14:49.879Z",
+              "createdBy": null,
+              "lastModifiedBy": null,
+              "modified": "2026-10-15T13:14:51.104Z",
+              "offer": {
+                "@id": "urn:uuid:8735c412-ec19-453d-97aa-f872bd40b1dd",
+                "assignee": null,
+                "assigner": "urn:example:DataProviderA",
+                "originalId": "urn:uuid:fdc45798-a123-4955-8baf-ab7fd66ac4d5",
+                "permission": [
+                  {
+                    "assigner": null,
+                    "assignee": null,
+                    "target": null,
+                    "action": "USE",
+                    "constraint": [
+                      {
+                        "leftOperand": "COUNT",
+                        "operator": "LTEQ",
+                        "rightOperand": "5"
+                      }
+                    ]
+                  }
+                ],
+                "target": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5"
+              },
+              "retryCount": 0,
+              "role": "consumer",
+              "state": "FINALIZED",
+              "tenantId": "connector-a",
+              "type": "ContractNegotiation",
+              "version": 3
+            },
+            {
+              "links": [
+                {
+                  "rel": "self",
+                  "href": "http://localhost:8080/api/v1/negotiations/urn%3Auuid%3Ac0c7cf2e-3c85-4bbb-a9fb-d2f72ae45cf3"
+                }
+              ],
+              "@id": "urn:uuid:c0c7cf2e-3c85-4bbb-a9fb-d2f72ae45cf3",
+              "consumerPid": "urn:uuid:30729550-e14d-4844-96f9-a212a6ead8fa",
+              "providerPid": "urn:uuid:3626fc9c-b1ff-46c5-abbd-7420295b2a66",
+              "agreement": {
+                "technicalId": "6ad0d2592966585fc99eb352",
+                "assigner": "urn:example:DataProviderA",
+                "assignee": "http://connector-a:8080/connector-a/consumer",
+                "target": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5",
+                "timestamp": "2026-10-15T13:17:13.107931208Z",
+                "permission": [
+                  {
+                    "assigner": null,
+                    "assignee": null,
+                    "target": null,
+                    "action": "USE",
+                    "constraint": [
+                      {
+                        "leftOperand": "COUNT",
+                        "operator": "LTEQ",
+                        "rightOperand": "5"
+                      }
+                    ]
+                  }
+                ],
+                "tenantId": "connector-a",
+                "type": "Agreement",
+                "@id": "urn:uuid:6b8cbd83-5ef2-453d-be21-9d7f3de9e4de"
+              },
+              "assigner": "urn:example:DataProviderA",
+              "callbackAddress": "http://connector-b:8080/connector-b",
+              "created": "2026-10-15T13:17:13.354Z",
+              "createdBy": null,
+              "lastModifiedBy": null,
+              "modified": "2026-10-15T13:17:14.397Z",
+              "offer": {
+                "@id": "urn:uuid:0cc388af-1c0f-417f-823d-b24a14cf0b7b",
+                "assignee": null,
+                "assigner": "urn:example:DataProviderA",
+                "originalId": "urn:uuid:fdc45798-a123-4955-8baf-ab7fd66ac4d5",
+                "permission": [
+                  {
+                    "assigner": null,
+                    "assignee": null,
+                    "target": null,
+                    "action": "USE",
+                    "constraint": [
+                      {
+                        "leftOperand": "COUNT",
+                        "operator": "LTEQ",
+                        "rightOperand": "5"
+                      }
+                    ]
+                  }
+                ],
+                "target": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5"
+              },
+              "retryCount": 0,
+              "role": "consumer",
+              "state": "FINALIZED",
+              "tenantId": "connector-a",
+              "type": "ContractNegotiation",
+              "version": 3
+            }
+          ],
+          "page": {
+            "size": 2,
+            "totalElements": 57,
+            "totalPages": 29,
+            "number": 0
+          }
+        },
+        "timestamp": "2026-10-27T08:26:12Z"
+      }
+    }
+  },
+  "dspace_version": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "protocolVersions": [
+        {
+          "binding": "HTTPS",
+          "path": "/",
+          "version": "2025-1",
+          "auth": {
+            "protocol": "https",
+            "version": "2025-1",
+            "profile": [
+              "authorization_code",
+              "refresh_token"
+            ]
+          },
+          "identifierType": null,
+          "serviceId": null
+        }
+      ]
+    }
+  },
+  "view": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": "http://host.docker.internal:9000/dsp-true-connector-a/urn%3Auuid%3A32cff886-6a1e-462c-8409-e89efd823fe7?response-content-disposition=attachment%3B%20filename%3D%22ENG-employee.json%22&response-content-type=application%2Fjson&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20261027T082611Z&X-Amz-SignedHeaders=host&X-Amz-Credential=<redacted>&X-Amz-Expires=604800&X-Amz-Signature=<redacted>"
+  },
+  "error_400": {
+    "status": 400,
+    "content_type": "application/json",
+    "body": {
+      "success": false,
+      "message": "Contract negotiation with id does-not-exist not found",
+      "timestamp": "2026-10-27T08:26:12Z"
+    }
+  },
+  "error_400_already": {
+    "status": 400,
+    "content_type": "application/json",
+    "body": {
+      "success": false,
+      "message": "State transition aborted, FINALIZED state can not transition to FINALIZED",
+      "timestamp": "2026-10-27T08:26:12Z"
+    }
+  },
+  "error_401": {
+    "status": 401,
+    "content_type": "application/json",
+    "body": {
+      "statusCode": "UNAUTHORIZED",
+      "body": {
+        "type": "about:blank",
+        "title": "Unauthorized",
+        "status": 401,
+        "detail": "/api/v1/catalogs"
+      },
+      "typeMessageCode": "problemDetail.type.it.eng.connector.configuration.DataspaceProtocolEndpointsExceptionHandler$1",
+      "detailMessageCode": "problemDetail.it.eng.connector.configuration.DataspaceProtocolEndpointsExceptionHandler$1",
+      "titleMessageCode": "problemDetail.title.it.eng.connector.configuration.DataspaceProtocolEndpointsExceptionHandler$1"
+    }
+  },
+  "error_401_refresh_reuse": {
+    "status": 401,
+    "content_type": "application/json",
+    "body": {
+      "timestamp": "2026-10-27T08:26:11.854177983Z",
+      "status": 401,
+      "error": "Unauthorized",
+      "message": "Invalid credentials"
+    }
+  },
+  "error_403": {
+    "status": 403,
+    "content_type": "application/json",
+    "body": {
+      "timestamp": "2026-10-27T08:26:12.421+00:00",
+      "status": 403,
+      "error": "Forbidden",
+      "message": "Forbidden",
+      "path": "/api/v1/properties/"
+    }
+  },
+  "error_500": {
+    "status": 500,
+    "content_type": "application/json",
+    "body": {
+      "timestamp": "2026-10-27T08:26:12.439+00:00",
+      "status": 500,
+      "error": "Internal Server Error",
+      "message": "Cannot invoke \"com.fasterxml.jackson.databind.JsonNode.asText()\" because the return value of \"com.fasterxml.jackson.databind.JsonNode.get(String)\" is null",
+      "path": "/api/v1/proxy/catalogs"
+    }
+  }
+}
