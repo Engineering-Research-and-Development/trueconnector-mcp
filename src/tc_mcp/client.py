@@ -8,7 +8,7 @@ import httpx2
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import SecretStr
 
-from tc_mcp.config import Connector
+from tc_mcp.config import Connector, Settings
 
 _SAME_STATE = re.compile(r"(\w+) state can not transition to \1\b")
 _EXPIRY_SKEW_S = 30
@@ -93,6 +93,38 @@ class TCClient:
         self._access = tokens["access_token"]
         self._refresh = tokens["refresh_token"]
         self._expires_at = time.monotonic() + tokens["expires_in"] - _EXPIRY_SKEW_S
+
+
+class Registry:
+    """One TCClient per configured connector; the first one is the default."""
+
+    def __init__(self, settings: Settings, transport: httpx2.AsyncBaseTransport | None = None):
+        self._clients = {c.name: TCClient(c, settings.timeout_s, transport) for c in settings.connectors}
+
+    def get(self, name: str | None = None) -> TCClient:
+        if name is None:
+            return next(iter(self._clients.values()))
+        if name not in self._clients:
+            raise ToolError(f"Unknown connector '{name}'. Configured: {', '.join(self._clients)}")
+        return self._clients[name]
+
+    def forward_to(self, peer: str) -> str:
+        """The Forward-To value for `peer`: a configured connector's protocol_url, or an http(s) URL as given."""
+        if peer in self._clients:
+            url = self._clients[peer].connector.protocol_url
+            if url is None:
+                raise ToolError(f"Connector '{peer}' has no protocol_url configured; pass its DSP protocol URL instead")
+            return url
+        if peer.startswith(("http://", "https://")):
+            return peer
+        raise ToolError(
+            f"Unknown peer '{peer}': use a configured connector name ({', '.join(self._clients)}) "
+            "or the peer's DSP protocol URL, e.g. http://connector-b:8080/connector-b"
+        )
+
+    async def aclose(self) -> None:
+        for client in self._clients.values():
+            await client.aclose()
 
 
 def _error(status: int, body: Any, where: str) -> ToolError:

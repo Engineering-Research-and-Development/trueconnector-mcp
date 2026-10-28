@@ -6,8 +6,8 @@ import pytest
 from conftest import FIXTURES, FakeConnector, live, login_response, make_client
 from mcp.server.mcpserver.exceptions import ToolError
 
-from tc_mcp.client import AlreadyInState, Rejected, TCClient, _error, _unwrap
-from tc_mcp.config import Connector
+from tc_mcp.client import AlreadyInState, Registry, Rejected, TCClient, _error, _unwrap
+from tc_mcp.config import Connector, Settings
 
 pytestmark = pytest.mark.anyio
 
@@ -255,6 +255,32 @@ async def test_concurrent_requests_share_one_refresh():
 
     assert len(fake.calls(*REFRESH)) == 1
     assert [bearer(r) for r in fake.calls(*CATALOGS)[1:]] == ["Bearer A2"] * 5
+
+
+async def test_registry_resolves_peers_and_connectors():
+    settings = Settings(
+        _env_file=None,
+        connectors=[
+            {"name": "a", "base_url": "http://tc-a", "protocol_url": "http://connector-a:8080/connector-a"},
+            {"name": "b", "base_url": "http://tc-b"},
+        ],
+    )
+    registry = Registry(settings)
+
+    assert registry.get().connector.name == "a"
+    assert registry.get("b").connector.name == "b"
+    with pytest.raises(ToolError, match=r"Unknown connector 'c'. Configured: a, b"):
+        registry.get("c")
+
+    assert registry.forward_to("a") == "http://connector-a:8080/connector-a"
+    assert registry.forward_to("https://peer.example/dsp") == "https://peer.example/dsp"
+    with pytest.raises(ToolError, match="'b' has no protocol_url"):
+        registry.forward_to("b")
+    with pytest.raises(ToolError, match="Unknown peer 'connector-b'"):
+        registry.forward_to("connector-b")
+
+    await registry.aclose()
+    assert registry.get("a")._http.is_closed and registry.get("b")._http.is_closed
 
 
 async def test_logout_failure_does_not_break_shutdown():
