@@ -1,0 +1,22 @@
+# Runs tc-mcp next to the local TrueConnector stack (start that one first); it joins the stack's networks
+# and reaches the connectors by service name. Credentials are the stack's public demo ones, as in .env.example.
+services:
+  tc-mcp:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"  # host-only: the server holds ADMIN tokens. Endpoint: http://localhost:8000/mcp
+    environment:
+      TC_CONNECTORS: >-
+        [{"name": "a", "base_url": "http://connector-a:8080", "protocol_url": "http://connector-a:8080/connector-a",
+          "email": "admin@mail.com", "password": "password"},
+         {"name": "b", "base_url": "http://connector-b:8080", "protocol_url": "http://connector-b:8080/connector-b",
+          "email": "admin@mail.com", "password": "password"}]
+    networks: [network-a, network-b]
+
+networks:
+  network-a:
+    name: trueconnector_network-a
+    external: true
+  network-b:
+    name: trueconnector_network-b
+    external: true
