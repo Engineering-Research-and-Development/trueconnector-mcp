@@ -267,7 +267,8 @@ async def test_registry_resolves_peers_and_connectors():
     )
     registry = Registry(settings)
 
-    assert registry.get().connector.name == "a"
+    with pytest.raises(ToolError, match=r"Several connectors configured \(a, b\): pass connector"):
+        registry.get()
     assert registry.get("b").connector.name == "b"
     with pytest.raises(ToolError, match=r"Unknown connector 'c'. Configured: a, b"):
         registry.get("c")
@@ -281,6 +282,9 @@ async def test_registry_resolves_peers_and_connectors():
 
     await registry.aclose()
     assert registry.get("a")._http.is_closed and registry.get("b")._http.is_closed
+
+    only = Registry(Settings(_env_file=None, connectors=[{"name": "a", "base_url": "http://tc-a"}]))
+    assert only.get().connector.name == "a"
 
 
 async def test_logout_failure_does_not_break_shutdown():

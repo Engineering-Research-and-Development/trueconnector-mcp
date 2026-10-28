@@ -96,13 +96,15 @@ class TCClient:
 
 
 class Registry:
-    """One TCClient per configured connector; the first one is the default."""
+    """One TCClient per configured connector; `connector` may be omitted only when there is exactly one."""
 
     def __init__(self, settings: Settings, transport: httpx2.AsyncBaseTransport | None = None):
         self._clients = {c.name: TCClient(c, settings.timeout_s, transport) for c in settings.connectors}
 
     def get(self, name: str | None = None) -> TCClient:
         if name is None:
+            if len(self._clients) > 1:  # a silent default could act on the wrong side of an exchange
+                raise ToolError(f"Several connectors configured ({', '.join(self._clients)}): pass connector")
             return next(iter(self._clients.values()))
         if name not in self._clients:
             raise ToolError(f"Unknown connector '{name}'. Configured: {', '.join(self._clients)}")
