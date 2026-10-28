@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-tc-mcp = "tc_mcp:main"
+tc-mcp = "tc_mcp.__main__:main"
 
 [build-system]
 requires = ["uv_build>=0.9.5,<0.10.0"]
@@ -34,6 +34,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 [tool.mypy]
 strict = true
 files = ["src"]
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
