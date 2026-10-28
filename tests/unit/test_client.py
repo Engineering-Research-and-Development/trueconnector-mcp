@@ -1,8 +1,9 @@
 import json
 
+import anyio
 import httpx2
 import pytest
-from conftest import FIXTURES, FakeConnector, login_response, make_client
+from conftest import FIXTURES, FakeConnector, live, login_response, make_client
 from mcp.server.mcpserver.exceptions import ToolError
 
 from tc_mcp.client import AlreadyInState, Rejected, TCClient, _error, _unwrap
@@ -200,6 +201,60 @@ async def test_static_token_and_no_auth_modes_never_log_in(connector, expected):
     await client.aclose()
 
     assert [bearer(r) for r in fake.requests] == [expected]
+
+
+async def test_401_triggers_one_renewal_and_retry():
+    catalogs = iter(["error_401", "envelope_data"])
+    fake = FakeConnector(
+        {
+            LOGIN: lambda r: login_response("A1", "R1"),
+            REFRESH: lambda r: login_response("A2", "R2"),
+            CATALOGS: lambda r: live(next(catalogs)),
+        }
+    )
+    client = make_client(fake, **CREDENTIALS)
+
+    assert await client.request(*CATALOGS) == FIXTURES["envelope_data"]["body"]["data"]
+
+    assert len(fake.calls(*REFRESH)) == 1
+    assert [bearer(r) for r in fake.calls(*CATALOGS)] == ["Bearer A1", "Bearer A2"]
+
+
+async def test_persistent_401_fails_after_a_single_retry():
+    fake = FakeConnector(
+        {
+            LOGIN: lambda r: login_response("A1", "R1"),
+            REFRESH: lambda r: login_response("A2", "R2"),
+            CATALOGS: "error_401",
+        }
+    )
+    client = make_client(fake, **CREDENTIALS)
+
+    with pytest.raises(ToolError, match=r"^a GET /api/v1/catalogs: authentication failed"):
+        await client.request(*CATALOGS)
+
+    assert len(fake.calls(*CATALOGS)) == 2
+    assert len(fake.calls(*REFRESH)) == 1
+
+
+async def test_concurrent_requests_share_one_refresh():
+    # FakeConnector yields on every request; a handler that never awaits runs the tasks one by one and hides the race.
+    fake = FakeConnector(
+        {
+            LOGIN: lambda r: login_response("A1", "R1", expires_in=10),
+            REFRESH: lambda r: login_response("A2", "R2"),
+            CATALOGS: "envelope_data",
+        }
+    )
+    client = make_client(fake, **CREDENTIALS)
+    await client.request(*CATALOGS)  # logs in; the token is already inside the skew
+
+    async with anyio.create_task_group() as tg:
+        for _ in range(5):
+            tg.start_soon(client.request, *CATALOGS)
+
+    assert len(fake.calls(*REFRESH)) == 1
+    assert [bearer(r) for r in fake.calls(*CATALOGS)[1:]] == ["Bearer A2"] * 5
 
 
 async def test_logout_failure_does_not_break_shutdown():

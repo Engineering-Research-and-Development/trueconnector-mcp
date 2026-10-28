@@ -3,6 +3,7 @@ import re
 import time
 from typing import Any
 
+import anyio
 import httpx2
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import SecretStr
@@ -36,23 +37,30 @@ class TCClient:
         self._access = connector.token.get_secret_value() if connector.token else None
         self._refresh: str | None = None
         self._expires_at = 0.0
+        self._lock = anyio.Lock()
 
     async def request(self, method: str, path: str, *, auth: bool = True, **kwargs: Any) -> Any:
-        token = await self._token() if auth else None
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
         where = f"{self.connector.name} {method} {path}"
+        token = await self._token() if auth else None
+        response = await self._send(method, path, token, where, **kwargs)
+        if response.status_code == 401 and auth and self.connector.password is not None:
+            token = await self._token(rejected=token)
+            response = await self._send(method, path, token, where, **kwargs)
+        body = _body(response)
+        if response.is_success:
+            return _unwrap(body)
+        raise _error(response.status_code, body, where)
+
+    async def _send(self, method: str, path: str, token: str | None, where: str, **kwargs: Any) -> httpx2.Response:
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
         try:
-            response = await self._http.request(method, path, headers=headers, **kwargs)
+            return await self._http.request(method, path, headers=headers, **kwargs)
         except httpx2.TimeoutException as e:
             raise ToolError(
                 f"{where}: timed out; it may still have been applied, check the state before retrying"
             ) from e
         except httpx2.TransportError as e:
             raise ToolError(f"{where}: connector unreachable at {self.connector.base_url} ({e!r})") from e
-        body = _body(response)
-        if response.is_success:
-            return _unwrap(body)
-        raise _error(response.status_code, body, where)
 
     async def aclose(self) -> None:
         if self._refresh is not None:
@@ -60,12 +68,13 @@ class TCClient:
                 await self.request("POST", "/api/v1/auth/logout", auth=False, json={"refresh_token": self._refresh})
         await self._http.aclose()
 
-    async def _token(self) -> str | None:
+    async def _token(self, rejected: str | None = None) -> str | None:
         if self.connector.password is None:  # static token or auth DISABLED: nothing to renew
             return self._access
-        if self._access is None or time.monotonic() >= self._expires_at:
-            await self._renew(self.connector.password)
-        return self._access
+        async with self._lock:  # one renewal at a time; waiters re-check and reuse its result
+            if self._access is None or self._access == rejected or time.monotonic() >= self._expires_at:
+                await self._renew(self.connector.password)
+            return self._access
 
     async def _renew(self, password: SecretStr) -> None:
         if self._refresh is not None:
