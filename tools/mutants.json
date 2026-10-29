@@ -37,5 +37,12 @@
   {"name": "aclose closes only the first", "file": "src/tc_mcp/client.py", "old": "        for client in self._clients.values():\n            await client.aclose()", "new": "        await self.get(\"a\").aclose()"},
 
   {"name": "version tool authenticates", "file": "src/tc_mcp/tools/ops.py", "old": "auth=False", "new": "auth=True"},
-  {"name": "lifespan never closes the registry", "file": "src/tc_mcp/server.py", "old": "            await registry.aclose()", "new": "            pass"}
+  {"name": "lifespan never closes the registry", "file": "src/tc_mcp/server.py", "old": "            await registry.aclose()", "new": "            pass"},
+
+  {"name": "leftOperand accepts any string", "file": "src/tc_mcp/tools/__init__.py", "old": "leftOperand: Literal[\"COUNT\", \"DATE_TIME\"]", "new": "leftOperand: str"},
+  {"name": "PURPOSE allowed (negotiation enum, not catalog)", "file": "src/tc_mcp/tools/__init__.py", "old": "Literal[\"COUNT\", \"DATE_TIME\"]", "new": "Literal[\"COUNT\", \"DATE_TIME\", \"PURPOSE\"]"},
+  {"name": "action default not USE", "file": "src/tc_mcp/tools/__init__.py", "old": "= \"USE\"", "new": "= \"ANONYMIZE\""},
+  {"name": "lang wrong language", "file": "src/tc_mcp/tools/__init__.py", "old": "\"language\": \"en\"", "new": "\"language\": \"it\""},
+  {"name": "text ignores plain strings", "file": "src/tc_mcp/tools/__init__.py", "old": "return value if isinstance(value, str) else None", "new": "return None"},
+  {"name": "text crashes on empty list", "file": "src/tc_mcp/tools/__init__.py", "old": "for v in value if isinstance(v, dict)), None)", "new": "for v in value if isinstance(v, dict)))"}
 ]
