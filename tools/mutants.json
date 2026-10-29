@@ -1,0 +1,41 @@
+[
+  {"name": "links not stripped", "file": "src/tc_mcp/client.py", "old": "if k != \"links\"", "new": "if True"},
+  {"name": "paged returned raw", "file": "src/tc_mcp/client.py", "old": "and \"response\" in body:", "new": "and False:"},
+  {"name": "envelope returned raw", "file": "src/tc_mcp/client.py", "old": "and \"success\" in body:", "new": "and False:"},
+  {"name": "no message fallback", "file": "src/tc_mcp/client.py", "old": "else {\"message\": body[\"message\"]}", "new": "else None"},
+  {"name": "no text fallback", "file": "src/tc_mcp/client.py", "old": "return response.text", "new": "raise"},
+  {"name": "empty data treated as missing", "file": "src/tc_mcp/client.py", "old": "if body.get(\"data\") is not None", "new": "if body.get(\"data\")"},
+
+  {"name": "errors unwrapped as success", "file": "src/tc_mcp/client.py", "old": "if response.is_success:", "new": "if True:"},
+  {"name": "no same-state detection", "file": "src/tc_mcp/client.py", "old": "if m := _SAME_STATE.search(str(message)):", "new": "if m := None:"},
+  {"name": "any transition counts as same state", "file": "src/tc_mcp/client.py", "old": "transition to \\1\\b", "new": "transition to \\w+\\b"},
+  {"name": "400 not Rejected", "file": "src/tc_mcp/client.py", "old": "        return Rejected(str(message), where)", "new": "        return ToolError(str(message))"},
+  {"name": "transport errors not mapped", "file": "src/tc_mcp/client.py", "old": "except httpx2.TransportError as e:", "new": "except httpx2.ProxyError as e:"},
+  {"name": "timeout reported as unreachable", "file": "src/tc_mcp/client.py", "old": "except httpx2.TimeoutException as e:", "new": "except httpx2.ProxyError as e:"},
+  {"name": "5xx falls to unexpected", "file": "src/tc_mcp/client.py", "old": "if status >= 500:", "new": "if status >= 600:"},
+  {"name": "403 falls to unexpected", "file": "src/tc_mcp/client.py", "old": "if status == 403:", "new": "if status == 0:"},
+
+  {"name": "no expiry skew", "file": "src/tc_mcp/client.py", "old": "_EXPIRY_SKEW_S = 30", "new": "_EXPIRY_SKEW_S = 0"},
+  {"name": "never expires", "file": "src/tc_mcp/client.py", "old": " or time.monotonic() >= self._expires_at:", "new": ":"},
+  {"name": "always full login, never refresh", "file": "src/tc_mcp/client.py", "old": "        if self._refresh is not None:\n            try:", "new": "        if False:\n            try:"},
+  {"name": "refresh without login fallback", "file": "src/tc_mcp/client.py", "old": "            except ToolError:\n                pass", "new": "            except ZeroDivisionError:\n                pass"},
+  {"name": "rotated refresh token not stored", "file": "src/tc_mcp/client.py", "old": "        self._refresh = tokens[\"refresh_token\"]", "new": "        self._refresh = self._refresh or tokens[\"refresh_token\"]"},
+  {"name": "static token not sent", "file": "src/tc_mcp/client.py", "old": "self._access = connector.token.get_secret_value() if connector.token else None", "new": "self._access = None"},
+  {"name": "logout failure breaks shutdown", "file": "src/tc_mcp/client.py", "old": "with contextlib.suppress(ToolError):", "new": "with contextlib.suppress(ZeroDivisionError):"},
+  {"name": "no logout", "file": "src/tc_mcp/client.py", "old": "        if self._refresh is not None:\n            with", "new": "        if False:\n            with"},
+
+  {"name": "remove the lock", "file": "src/tc_mcp/client.py", "old": "async with self._lock:", "new": "if True:"},
+  {"name": "no retry on 401", "file": "src/tc_mcp/client.py", "old": "if response.status_code == 401 and auth", "new": "if response.status_code == 999 and auth"},
+  {"name": "repeated 401 retries (bounded stand-in for unlimited)", "file": "src/tc_mcp/client.py", "old": "        if response.status_code == 401 and auth and self.connector.password is not None:\n            token = await self._token(rejected=token)\n            response = await self._send(method, path, token, where, **kwargs)", "new": "        for _ in range(5):\n            if response.status_code == 401 and auth and self.connector.password is not None:\n                token = await self._token(rejected=token)\n                response = await self._send(method, path, token, where, **kwargs)"},
+  {"name": "retry without renewal (no stale-token check)", "file": "src/tc_mcp/client.py", "old": " or self._access == rejected", "new": ""},
+
+  {"name": "silent default with several connectors", "file": "src/tc_mcp/client.py", "old": "if len(self._clients) > 1:", "new": "if False:"},
+  {"name": "default refused even with one connector", "file": "src/tc_mcp/client.py", "old": "if len(self._clients) > 1:", "new": "if len(self._clients) > 0:"},
+  {"name": "unknown connector raises KeyError", "file": "src/tc_mcp/client.py", "old": "        if name not in self._clients:\n            raise", "new": "        if False:\n            raise"},
+  {"name": "missing protocol_url returns None", "file": "src/tc_mcp/client.py", "old": "            if url is None:\n                raise", "new": "            if False:\n                raise"},
+  {"name": "any string passes as URL", "file": "src/tc_mcp/client.py", "old": "if peer.startswith((\"http://\", \"https://\")):", "new": "if True:"},
+  {"name": "aclose closes only the first", "file": "src/tc_mcp/client.py", "old": "        for client in self._clients.values():\n            await client.aclose()", "new": "        await self.get(\"a\").aclose()"},
+
+  {"name": "version tool authenticates", "file": "src/tc_mcp/tools/ops.py", "old": "auth=False", "new": "auth=True"},
+  {"name": "lifespan never closes the registry", "file": "src/tc_mcp/server.py", "old": "            await registry.aclose()", "new": "            pass"}
+]

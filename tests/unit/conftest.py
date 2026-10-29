@@ -1,5 +1,7 @@
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import anyio
 import httpx2
@@ -20,15 +22,26 @@ def live(name: str) -> httpx2.Response:
 class FakeConnector:
     """Answers `(method, path)` with a recorded fixture and records every request it receives."""
 
-    def __init__(self, routes: dict[tuple[str, str], str]):
+    def __init__(self, routes: dict[tuple[str, str], str | Callable[[httpx2.Request], httpx2.Response]]):
         self.routes = routes
         self.requests: list[httpx2.Request] = []
 
     async def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.requests.append(request)
         await anyio.sleep(0)
-        return live(self.routes[(request.method, request.url.path)])
+        route = self.routes[(request.method, request.url.path)]
+        return live(route) if isinstance(route, str) else route(request)
+
+    def calls(self, method: str, path: str) -> list[httpx2.Request]:
+        return [r for r in self.requests if r.method == method and r.url.path == path]
 
 
-def make_client(fake: FakeConnector) -> TCClient:
-    return TCClient(Connector(name="a", base_url="http://tc"), timeout_s=5, transport=httpx2.MockTransport(fake))
+def login_response(access: str, refresh: str, expires_in: int = 900) -> httpx2.Response:
+    """The recorded login body with chosen tokens, so tests can tell token pairs apart."""
+    body = {**FIXTURES["login"]["body"], "access_token": access, "refresh_token": refresh, "expires_in": expires_in}
+    return httpx2.Response(200, json=body)
+
+
+def make_client(fake: FakeConnector, **connector: Any) -> TCClient:
+    conn = Connector(**{"name": "a", "base_url": "http://tc", **connector})
+    return TCClient(conn, timeout_s=5, transport=httpx2.MockTransport(fake))
