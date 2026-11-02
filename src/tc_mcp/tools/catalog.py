@@ -3,7 +3,7 @@ from urllib.parse import quote
 
 from mcp.server.mcpserver import Context, MCPServer
 
-from tc_mcp.tools import READ_ONLY, registry, text
+from tc_mcp.tools import DESTRUCTIVE, READ_ONLY, WRITE, registry, text
 
 
 def seg(value: str) -> str:
@@ -64,3 +64,63 @@ def register(mcp: MCPServer) -> None:
     async def get_own_catalog(ctx: Context, connector: str | None = None) -> Any:
         """This connector's own catalog (what it publishes to consumers)."""
         return await registry(ctx).get(connector).request("GET", "/api/v1/catalogs")
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_catalog(ctx: Context, id: str, connector: str | None = None) -> Any:
+        """A catalog on this connector by ID."""
+        return await registry(ctx).get(connector).request("GET", f"/api/v1/catalogs/{seg(id)}")
+
+    @mcp.tool(annotations=WRITE)
+    async def create_catalog(ctx: Context, catalog: dict[str, Any], connector: str | None = None) -> Any:
+        """Create a catalog: {"title", "participantId", "description": [{"value", "language": "en"}], "keyword": [...]}.
+
+        Datasets are linked automatically when they are created; don't embed them here.
+        """
+        return await registry(ctx).get(connector).request("POST", "/api/v1/catalogs", json=catalog)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_catalog(ctx: Context, id: str, catalog: dict[str, Any], connector: str | None = None) -> Any:
+        """Change the given catalog fields; fields left out are kept. A field can't be cleared with null."""
+        return await registry(ctx).get(connector).request("PUT", f"/api/v1/catalogs/{seg(id)}", json=catalog)
+
+    @mcp.tool(annotations=DESTRUCTIVE)
+    async def delete_catalog(ctx: Context, id: str, connector: str | None = None) -> Any:
+        """Delete a catalog."""
+        return await registry(ctx).get(connector).request("DELETE", f"/api/v1/catalogs/{seg(id)}")
+
+    _register_readers(mcp, "dataset", "datasets", "/api/v1/datasets")
+    _register_readers(mcp, "distribution", "distributions", "/api/v1/distributions")
+    _register_readers(mcp, "data_service", "data_services", "/api/v1/dataservices")
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_dataset_formats(ctx: Context, id: str, connector: str | None = None) -> Any:
+        """Transfer formats of one of this connector's datasets (from its distributions)."""
+        return {"formats": await registry(ctx).get(connector).request("GET", f"/api/v1/datasets/{seg(id)}/formats")}
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_dataset_artifact(ctx: Context, id: str, connector: str | None = None) -> Any:
+        """The artifact behind a dataset: FILE (stored upload) or EXTERNAL (a URL the connector fetches)."""
+        return await registry(ctx).get(connector).request("GET", f"/api/v1/datasets/{seg(id)}/artifact")
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def get_artifacts(ctx: Context, artifact_id: str | None = None, connector: str | None = None) -> Any:
+        """Artifact metadata: all artifacts, or only the one with `artifact_id` (the artifact's own id)."""
+        path = "/api/v1/artifacts" + (f"/{seg(artifact_id)}" if artifact_id else "")
+        return {"artifacts": await registry(ctx).get(connector).request("GET", path)}
+
+
+def _register_readers(mcp: MCPServer, singular: str, plural: str, path: str) -> None:
+    """list_/get_/delete_ tools for one resource kind; create/update differ per kind and live elsewhere."""
+    label = singular.replace("_", " ")
+
+    @mcp.tool(name=f"list_{plural}", description=f"All {label}s on this connector.", annotations=READ_ONLY)
+    async def list_all(ctx: Context, connector: str | None = None) -> Any:
+        return {plural: await registry(ctx).get(connector).request("GET", path)}
+
+    @mcp.tool(name=f"get_{singular}", description=f"One {label} by ID.", annotations=READ_ONLY)
+    async def get_one(ctx: Context, id: str, connector: str | None = None) -> Any:
+        return await registry(ctx).get(connector).request("GET", f"{path}/{seg(id)}")
+
+    @mcp.tool(name=f"delete_{singular}", description=f"Delete a {label}.", annotations=DESTRUCTIVE)
+    async def delete_one(ctx: Context, id: str, connector: str | None = None) -> Any:
+        return await registry(ctx).get(connector).request("DELETE", f"{path}/{seg(id)}")

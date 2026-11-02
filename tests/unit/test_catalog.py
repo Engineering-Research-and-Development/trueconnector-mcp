@@ -98,3 +98,91 @@ async def test_remote_catalog_tool_warns_that_content_is_untrusted():
 def test_seg_keeps_urn_colons_and_quotes_path_characters():
     assert seg("urn:uuid:1") == "urn:uuid:1"
     assert seg("a/b?c#d e") == "a%2Fb%3Fc%23d%20e"
+
+
+async def test_tool_catalog_and_annotations():
+    async with mcp.Client(build_server(SETTINGS)) as client:
+        tools = {t.name: t.annotations for t in (await client.list_tools()).tools}
+
+    reads = {"browse_remote_catalog", "get_remote_dataset_formats", "get_own_catalog", "get_catalog"}
+    reads |= {
+        f"{verb}_{kind}" for verb, kind in [("list", "datasets"), ("list", "distributions"), ("list", "data_services")]
+    }
+    reads |= {f"get_{kind}" for kind in ("dataset", "distribution", "data_service")}
+    reads |= {"get_dataset_formats", "get_dataset_artifact", "get_artifacts"}
+    writes = {"create_catalog", "update_catalog"}
+    deletes = {f"delete_{kind}" for kind in ("catalog", "dataset", "distribution", "data_service")}
+    assert set(tools) == reads | writes | deletes | {"get_dspace_version"}
+    for name in reads:
+        assert tools[name].read_only_hint, name
+    for name in writes:
+        assert (tools[name].read_only_hint, tools[name].destructive_hint, tools[name].idempotent_hint) == (
+            False,
+            False,
+            False,
+        )
+    for name in deletes:
+        assert (tools[name].read_only_hint, tools[name].destructive_hint) == (False, True), name
+
+
+@pytest.mark.parametrize(
+    ("kind", "plural", "path"),
+    [
+        ("dataset", "datasets", "/api/v1/datasets"),
+        ("distribution", "distributions", "/api/v1/distributions"),
+        ("data_service", "data_services", "/api/v1/dataservices"),
+    ],
+)
+async def test_readers_list_get_and_delete_each_resource_kind(kind, plural, path):
+    fake = FakeConnector(
+        {
+            ("GET", path): "proxy_formats",  # any recorded list envelope
+            ("GET", f"{path}/urn:uuid:x/y"): "envelope_data",
+            ("DELETE", f"{path}/urn:uuid:x/y"): "envelope_no_data",
+        }
+    )
+
+    listed = await call(fake, f"list_{plural}", connector="a")
+    got = await call(fake, f"get_{kind}", id="urn:uuid:x/y", connector="a")
+    deleted = await call(fake, f"delete_{kind}", id="urn:uuid:x/y", connector="a")
+
+    assert len(listed.content) == 1
+    assert json.loads(listed.content[0].text) == {plural: FIXTURES["proxy_formats"]["body"]["data"]}
+    assert json.loads(got.content[0].text) == FIXTURES["envelope_data"]["body"]["data"]
+    assert json.loads(deleted.content[0].text) == {"message": FIXTURES["envelope_no_data"]["body"]["message"]}
+    assert [r.url.raw_path for r in fake.requests[1:]] == [f"{path}/urn:uuid:x%2Fy".encode()] * 2
+
+
+async def test_update_catalog_sends_only_the_given_fields():
+    # Live: catalog PUT merges server-side (unlike datasets), so no GET-merge is needed.
+    fake = FakeConnector({("PUT", "/api/v1/catalogs/urn:uuid:c"): "envelope_data"})
+
+    result = await call(fake, "update_catalog", id="urn:uuid:c", catalog={"title": "new"}, connector="a")
+
+    assert not result.is_error, result.content
+    [request] = fake.requests
+    assert json.loads(request.content) == {"title": "new"}
+
+
+async def test_dataset_formats_and_artifacts_are_wrapped():
+    fake = FakeConnector(
+        {
+            ("GET", "/api/v1/datasets/urn:uuid:d/formats"): "proxy_formats",
+            ("GET", "/api/v1/artifacts"): "proxy_formats",
+            ("GET", "/api/v1/artifacts/urn:uuid:art"): "proxy_formats",
+        }
+    )
+    data = FIXTURES["proxy_formats"]["body"]["data"]
+
+    formats = await call(fake, "get_dataset_formats", id="urn:uuid:d", connector="a")
+    every = await call(fake, "get_artifacts", connector="a")
+    one = await call(fake, "get_artifacts", artifact_id="urn:uuid:art", connector="a")
+
+    assert json.loads(formats.content[0].text) == {"formats": data}
+    assert json.loads(every.content[0].text) == {"artifacts": data}
+    assert json.loads(one.content[0].text) == {"artifacts": data}
+    assert [r.url.path for r in fake.requests] == [
+        "/api/v1/datasets/urn:uuid:d/formats",
+        "/api/v1/artifacts",
+        "/api/v1/artifacts/urn:uuid:art",
+    ]
