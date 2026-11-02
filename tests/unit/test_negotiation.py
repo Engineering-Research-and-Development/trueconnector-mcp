@@ -120,3 +120,64 @@ async def test_negotiation_tools_describe_the_state_machine_and_list_has_an_outp
     assert schema is not None and set(schema["properties"]) == {"items", "page"}
     state = tools["list_negotiations"].input_schema["properties"]["state"]
     assert "FINALIZED" in json.dumps(state)
+
+
+OFFER = {"@id": "urn:uuid:offer", "target": "urn:uuid:dataset", "assigner": "urn:provider", "permission": []}
+AGREEMENT_PATH = "/api/v1/agreements/urn:uuid:agreement/enforce"
+CHECKS = [
+    ("validate_offer", "/api/v1/offers/validate", {"offer": OFFER}, "valid"),
+    ("enforce_agreement", AGREEMENT_PATH, {"agreement_id": "urn:uuid:agreement"}, "allowed"),
+]
+
+
+def answer(status, message, data=None):
+    body = {"success": status == 200, "message": message, "data": data}
+    return lambda _: httpx2.Response(status, json=body)
+
+
+@pytest.mark.parametrize(("tool", "path", "args", "verdict"), CHECKS)
+@pytest.mark.parametrize(
+    ("status", "message", "expected"),
+    [(200, "ok", True), (400, "Offer not valid", False), (400, "Agreement with id'x' evaluated as invalid", False)],
+)
+async def test_validate_and_enforce_map_rejections_to_false(tool, path, args, verdict, status, message, expected):
+    fake = FakeConnector({("POST", path): answer(status, message, data=message if status == 200 else None)})
+
+    result = await call(fake, tool, connector="b", **args)
+
+    assert not result.is_error, result.content
+    assert result.structured_content == {verdict: expected, "message": message}
+
+
+@pytest.mark.parametrize(("tool", "path", "args", "verdict"), CHECKS)
+@pytest.mark.parametrize(
+    ("status", "message", "error"),
+    [(500, "NullPointerException", "internal error"), (400, "Agreement with Id x not found.", "not found")],
+)
+async def test_validate_and_enforce_keep_failures_as_errors(tool, path, args, verdict, status, message, error):
+    fake = FakeConnector({("POST", path): answer(status, message)})
+
+    result = await call(fake, tool, connector="b", **args)
+
+    assert result.is_error
+    assert error in result.content[0].text
+
+
+async def test_validate_sends_the_offer_and_enforce_an_empty_body():
+    ok = answer(200, "ok", data="ok")
+    fake = FakeConnector({("POST", "/api/v1/offers/validate"): ok, ("POST", AGREEMENT_PATH): ok})
+
+    await call(fake, "validate_offer", offer=OFFER, connector="b")
+    await call(fake, "enforce_agreement", agreement_id="urn:uuid:agreement", connector="b")
+
+    validated, enforced = fake.requests
+    assert json.loads(validated.content) == OFFER
+    assert enforced.content == b"{}"
+
+
+async def test_validate_and_enforce_have_output_schemas():
+    async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+
+    assert set(tools["validate_offer"].output_schema["properties"]) == {"valid", "message"}
+    assert set(tools["enforce_agreement"].output_schema["properties"]) == {"allowed", "message"}

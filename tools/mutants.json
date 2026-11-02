@@ -97,7 +97,6 @@
   {"name": "prompts not registered", "file": "src/tc_mcp/server.py", "old": "    prompts.register(mcp)\n", "new": ""},
   {"name": "prompt ignores connector", "file": "src/tc_mcp/prompts.py", "old": "if connector else \"\"", "new": "if False else \"\""},
   {"name": "unconstrained permission allowed", "file": "src/tc_mcp/tools/__init__.py", "old": "constraint: list[Constraint] = Field(min_length=1)", "new": "constraint: list[Constraint] = []"},
-  {"name": "404 reported as unexpected", "file": "src/tc_mcp/client.py", "old": "if status == 404:", "new": "if status == 0:"},
   {"name": "publish: no rollback", "file": "src/tc_mcp/tools/datasets.py", "old": "for path in reversed(created):", "new": "for path in []:"},
   {"name": "publish: rollback in creation order", "file": "src/tc_mcp/tools/datasets.py", "old": "for path in reversed(created):", "new": "for path in created:"},
   {"name": "publish: a failing delete aborts the rollback", "file": "src/tc_mcp/tools/datasets.py", "old": "            with contextlib.suppress(ToolError):\n", "new": "            with contextlib.suppress(ZeroDivisionError):\n"},
@@ -120,5 +119,18 @@
   {"name": "counterpart searched on own connector", "file": "src/tc_mcp/tools/negotiation.py", "old": "theirs = await reg.get(peer_connector).request(", "new": "theirs = await reg.get(connector).request("},
   {"name": "counterpart not filtered by consumerPid", "file": "src/tc_mcp/tools/negotiation.py", "old": "params = page_params(0, 100, consumer_pid=mine[\"consumerPid\"])", "new": "params = page_params(0, 100)"},
   {"name": "state machine left out of descriptions", "file": "src/tc_mcp/tools/negotiation.py", "old": "\\n\\n{STATE_MACHINE}\"", "new": "\""},
-  {"name": "negotiation tools not registered", "file": "src/tc_mcp/server.py", "old": "    negotiation.register(mcp)\n", "new": ""}
+  {"name": "negotiation tools not registered", "file": "src/tc_mcp/server.py", "old": "    negotiation.register(mcp)\n", "new": ""},
+  {"name": "400 not-found treated as a rejection", "file": "src/tc_mcp/client.py", "old": "if status == 404 or (status == 400 and _NOT_FOUND.search(str(message))):", "new": "if status == 404:"},
+  {"name": "404 no longer reported as not found", "file": "src/tc_mcp/client.py", "old": "if status == 404 or (status == 400 and _NOT_FOUND.search(str(message))):", "new": "if status == 400 and _NOT_FOUND.search(str(message)):"},
+  {"name": "body-less POST/PUT sent without a body", "file": "src/tc_mcp/client.py", "old": "            kwargs[\"json\"] = {}", "new": "            pass"},
+  {"name": "body-less PUT sent without a body", "file": "src/tc_mcp/client.py", "old": "if method in (\"POST\", \"PUT\") and", "new": "if method in (\"POST\",) and"},
+  {"name": "GET and DELETE get an empty body", "file": "src/tc_mcp/client.py", "old": "if method in (\"POST\", \"PUT\") and", "new": "if method in (\"POST\", \"PUT\", \"GET\", \"DELETE\") and"},
+  {"name": "explicit json body replaced by {}", "file": "src/tc_mcp/client.py", "old": "{\"json\", \"data\", \"files\", \"content\"}", "new": "{\"data\", \"files\", \"content\"}"},
+  {"name": "rejected offer reported valid", "file": "src/tc_mcp/tools/negotiation.py", "old": "OfferValidation(valid=False, message=e.reason)", "new": "OfferValidation(valid=True, message=e.reason)"},
+  {"name": "rejection reason replaced by full error", "file": "src/tc_mcp/tools/negotiation.py", "old": "OfferValidation(valid=False, message=e.reason)", "new": "OfferValidation(valid=False, message=str(e))"},
+  {"name": "denied agreement reported allowed", "file": "src/tc_mcp/tools/negotiation.py", "old": "Enforcement(allowed=False, message=e.reason)", "new": "Enforcement(allowed=True, message=e.reason)"},
+  {"name": "validate sends no offer", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"/api/v1/offers/validate\", json=offer)", "new": "\"/api/v1/offers/validate\", json={})"},
+  {"name": "enforce has no output schema", "file": "src/tc_mcp/tools/negotiation.py", "old": "connector: str | None = None) -> Enforcement:", "new": "connector: str | None = None) -> Any:"},
+  {"name": "validate has no output schema", "file": "src/tc_mcp/tools/negotiation.py", "old": "connector: str | None = None) -> OfferValidation:", "new": "connector: str | None = None) -> Any:"},
+  {"name": "enforce not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "for check in (validate_offer, enforce_agreement):", "new": "for check in (validate_offer,):"}
 ]

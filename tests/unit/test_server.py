@@ -43,7 +43,13 @@ async def test_tool_catalog_and_annotations():
 
     reads = {"get_dspace_version", "browse_remote_catalog", "get_remote_dataset_formats", "get_own_catalog"}
     reads |= {"get_catalog", "get_dataset_formats", "get_dataset_artifact", "get_artifacts"}
-    reads |= {"list_negotiations", "get_negotiation", "find_counterpart_negotiation"}
+    reads |= {
+        "list_negotiations",
+        "get_negotiation",
+        "find_counterpart_negotiation",
+        "validate_offer",
+        "enforce_agreement",
+    }
     reads |= {f"list_{kind}" for kind in ("datasets", "distributions", "data_services")}
     reads |= {f"get_{kind}" for kind in ("dataset", "distribution", "data_service")}
     kinds = ("catalog", "data_service", "distribution", "dataset")
