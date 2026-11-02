@@ -6,7 +6,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
 
 from tc_mcp.client import Rejected
-from tc_mcp.tools import READ_ONLY, Page, PageNumber, PageSize, Role, page_params, registry, seg
+from tc_mcp.tools import READ_ONLY, WRITE, Page, PageNumber, PageSize, Role, page_params, registry, seg
 
 NegotiationState = Literal["REQUESTED", "OFFERED", "ACCEPTED", "AGREED", "VERIFIED", "FINALIZED", "TERMINATED"]
 
@@ -100,6 +100,61 @@ async def enforce_agreement(ctx: Context, agreement_id: str, connector: str | No
     return Enforcement(allowed=True, message=message)
 
 
+def pick_offer(catalog: dict[str, Any], dataset_id: str, offer_id: str | None, owner: str) -> dict[str, Any]:
+    """One of a catalog dataset's offers, ready to send: `target` = the dataset, `assigner` = the catalog owner."""
+    dataset = next((d for d in catalog.get("dataset") or [] if d.get("@id") == dataset_id), None)
+    if dataset is None:
+        raise ToolError(f"dataset {dataset_id} is not in the catalog of {owner}")
+    offers: list[dict[str, Any]] = dataset.get("hasPolicy") or []
+    ids = [o.get("@id") for o in offers]
+    if offer_id is None and len(offers) != 1:
+        raise ToolError(f"dataset {dataset_id} has {len(offers)} offers: pass offer_id, one of {ids}")
+    offer = next((o for o in offers if offer_id in (None, o.get("@id"))), None)
+    if offer is None:
+        raise ToolError(f"offer {offer_id} is not one of dataset {dataset_id}'s offers {ids}")
+    return offer | {"target": dataset_id, "assigner": catalog.get("participantId")}
+
+
+async def request_contract(
+    ctx: Context, peer: str, dataset_id: str, offer_id: str | None = None, connector: str | None = None
+) -> Any:
+    """Consumer: start a negotiation for one of a provider's datasets, accepting one of its offers as published.
+
+    `peer` is the provider: a configured connector name or its DSP protocol URL. `offer_id` is one of the dataset's
+    offers from browse_remote_catalog; it may be omitted when the dataset has exactly one. Returns this connector's
+    record (REQUESTED; with automatic negotiation the connectors reach FINALIZED within seconds).
+    """
+    reg = registry(ctx)
+    client, forward_to = reg.get(connector), reg.forward_to(peer)
+    catalog = await client.request("POST", "/api/v1/proxy/catalogs", json={"Forward-To": forward_to})
+    offer = pick_offer(catalog, dataset_id, offer_id, forward_to)
+    return await client.request("POST", "/api/v1/negotiations/request", json={"Forward-To": forward_to, "offer": offer})
+
+
+async def offer_contract(
+    ctx: Context,
+    peer: str,
+    dataset_id: str,
+    offer_id: str | None = None,
+    assignee: str | None = None,
+    connector: str | None = None,
+) -> Any:
+    """Provider: start a negotiation by offering one of this connector's datasets to a consumer (→ OFFERED).
+
+    `peer` is the consumer: a configured connector name or its DSP protocol URL. `offer_id` is one of the dataset's
+    offers in this connector's catalog; it may be omitted when the dataset has exactly one. `assignee` (the
+    consumer's identity in the agreement) defaults to `{peer protocol URL}/consumer`, the value TrueConnector itself
+    uses when a consumer requests. For other terms, publish them as another offer of the dataset first.
+    """
+    reg = registry(ctx)
+    client, forward_to = reg.get(connector), reg.forward_to(peer)
+    catalog = await client.request("GET", "/api/v1/catalogs")
+    offer = pick_offer(catalog, dataset_id, offer_id, client.connector.name)
+    # Without an assignee the provider's stored offer has none, and a later manual agree fails with a 500.
+    offer["assignee"] = assignee or f"{forward_to.rstrip('/')}/consumer"
+    return await client.request("POST", "/api/v1/negotiations/offer", json={"Forward-To": forward_to, "offer": offer})
+
+
 def register(mcp: MCPServer) -> None:
     for read in (list_negotiations, get_negotiation, find_counterpart_negotiation):
         mcp.add_tool(
@@ -107,3 +162,7 @@ def register(mcp: MCPServer) -> None:
         )
     for check in (validate_offer, enforce_agreement):
         mcp.add_tool(check, annotations=READ_ONLY)
+    for write in (request_contract, offer_contract):
+        mcp.add_tool(
+            write, annotations=WRITE, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
+        )

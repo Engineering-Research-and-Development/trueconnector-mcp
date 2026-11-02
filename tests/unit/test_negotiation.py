@@ -3,7 +3,7 @@ import json
 import httpx2
 import mcp
 import pytest
-from helpers import FIXTURES, TWO_CONNECTORS, FakeConnector, call
+from helpers import B_PROTOCOL, FIXTURES, TWO_CONNECTORS, FakeConnector, call
 
 from tc_mcp.server import build_server
 
@@ -114,7 +114,13 @@ async def test_negotiation_tools_describe_the_state_machine_and_list_has_an_outp
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
 
-    for name in ("list_negotiations", "get_negotiation", "find_counterpart_negotiation"):
+    for name in (
+        "list_negotiations",
+        "get_negotiation",
+        "find_counterpart_negotiation",
+        "request_contract",
+        "offer_contract",
+    ):
         assert "OFFERED -> REQUESTED | ACCEPTED | TERMINATED" in tools[name].description, name
     schema = tools["list_negotiations"].output_schema
     assert schema is not None and set(schema["properties"]) == {"items", "page"}
@@ -181,3 +187,96 @@ async def test_validate_and_enforce_have_output_schemas():
 
     assert set(tools["validate_offer"].output_schema["properties"]) == {"valid", "message"}
     assert set(tools["enforce_agreement"].output_schema["properties"]) == {"allowed", "message"}
+
+
+CATALOG = FIXTURES["proxy_catalog"]["body"]["data"]
+DATASET = CATALOG["dataset"][0]
+CATALOG_OFFER = DATASET["hasPolicy"][0]
+SECOND_OFFER = {**CATALOG_OFFER, "@id": "urn:uuid:second-offer"}
+A_PROTOCOL = "http://connector-a:8080/connector-a"
+
+
+def catalog_with(*offers):
+    catalog = {**CATALOG, "dataset": [{**DATASET, "hasPolicy": list(offers)}]}
+    return one(catalog)
+
+
+@pytest.mark.parametrize(
+    ("offers", "offer_id", "chosen"),
+    [((CATALOG_OFFER,), None, CATALOG_OFFER), ((CATALOG_OFFER, SECOND_OFFER), SECOND_OFFER["@id"], SECOND_OFFER)],
+)
+async def test_request_contract_builds_offer_from_catalog(offers, offer_id, chosen):
+    fake = FakeConnector(
+        {
+            ("POST", "/api/v1/proxy/catalogs"): catalog_with(*offers),
+            ("POST", "/api/v1/negotiations/request"): one(MINE),
+        }
+    )
+
+    result = await call(fake, "request_contract", peer="b", dataset_id=DATASET["@id"], offer_id=offer_id, connector="a")
+
+    assert not result.is_error, result.content
+    assert json.loads(result.content[0].text) == MINE
+    browsed, requested = fake.requests
+    assert {browsed.url.host, requested.url.host} == {"tc-a"}  # the consumer does both
+    assert json.loads(browsed.content) == {"Forward-To": B_PROTOCOL}
+    assert json.loads(requested.content) == {
+        "Forward-To": B_PROTOCOL,
+        "offer": chosen | {"target": DATASET["@id"], "assigner": CATALOG["participantId"]},
+    }
+
+
+@pytest.mark.parametrize(
+    ("offers", "args", "error"),
+    [
+        ((CATALOG_OFFER,), {"dataset_id": "urn:uuid:other"}, "dataset urn:uuid:other is not in the catalog of"),
+        ((CATALOG_OFFER, SECOND_OFFER), {}, "has 2 offers: pass offer_id, one of"),
+        ((), {}, "has 0 offers: pass offer_id"),
+        ((CATALOG_OFFER,), {"offer_id": "urn:uuid:other"}, "offer urn:uuid:other is not one of dataset"),
+    ],
+)
+async def test_request_contract_errors(offers, args, error):
+    fake = FakeConnector({("POST", "/api/v1/proxy/catalogs"): catalog_with(*offers)})
+
+    result = await call(fake, "request_contract", **({"peer": "b", "dataset_id": DATASET["@id"]} | args), connector="a")
+
+    assert result.is_error
+    assert error in result.content[0].text
+    assert not fake.calls("POST", "/api/v1/negotiations/request")
+
+
+@pytest.mark.parametrize(
+    ("peer", "assignee", "expected"),
+    [
+        (A_PROTOCOL, None, f"{A_PROTOCOL}/consumer"),
+        (f"{A_PROTOCOL}/", None, f"{A_PROTOCOL}/consumer"),
+        (A_PROTOCOL, "urn:connector:a", "urn:connector:a"),
+    ],
+)
+async def test_offer_contract_offers_own_catalog_offer_with_an_assignee(peer, assignee, expected):
+    fake = FakeConnector(
+        {
+            ("GET", "/api/v1/catalogs"): catalog_with(CATALOG_OFFER),
+            ("POST", "/api/v1/negotiations/offer"): one(MINE),
+        }
+    )
+
+    result = await call(fake, "offer_contract", peer=peer, dataset_id=DATASET["@id"], assignee=assignee, connector="b")
+
+    assert not result.is_error, result.content
+    offered = fake.calls("POST", "/api/v1/negotiations/offer")[0]
+    assert offered.url.host == "tc-b"
+    assert json.loads(offered.content) == {
+        "Forward-To": peer,
+        "offer": CATALOG_OFFER | {"target": DATASET["@id"], "assigner": CATALOG["participantId"], "assignee": expected},
+    }
+
+
+async def test_offer_contract_rejects_an_offer_not_in_own_catalog():
+    fake = FakeConnector({("GET", "/api/v1/catalogs"): catalog_with(CATALOG_OFFER)})
+
+    result = await call(fake, "offer_contract", peer=A_PROTOCOL, dataset_id="urn:uuid:other", connector="b")
+
+    assert result.is_error
+    assert "dataset urn:uuid:other is not in the catalog of b" in result.content[0].text
+    assert not fake.calls("POST", "/api/v1/negotiations/offer")

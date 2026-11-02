@@ -48,3 +48,24 @@ async def test_enforce_on_a_missing_agreement_is_an_error_not_a_denial(mcp_clien
 
     assert result.is_error
     assert "not found (Agreement with Id urn:uuid:nope not found.)" in result.content[0].text
+
+
+async def test_request_contract_starts_a_negotiation_with_the_provider(call):
+    dataset = (await call("browse_remote_catalog", peer="b", connector="a"))["datasets"][0]
+
+    mine = await call("request_contract", peer="b", dataset_id=dataset["id"], connector="a")
+
+    assert (mine["role"], mine["state"], mine["offer"]["target"]) == ("consumer", "REQUESTED", dataset["id"])
+    theirs = await call("find_counterpart_negotiation", id=mine["@id"], peer_connector="b", connector="a")
+    assert theirs["role"] == "provider"
+
+
+async def test_offer_contract_stores_the_assignee_on_both_sides(call):
+    dataset_id = (await call("get_own_catalog", connector="b"))["dataset"][0]["@id"]
+
+    mine = await call("offer_contract", peer="a", dataset_id=dataset_id, connector="b")
+
+    assignee = "http://connector-a:8080/connector-a/consumer"
+    assert (mine["role"], mine["state"], mine["offer"]["assignee"]) == ("provider", "OFFERED", assignee)
+    theirs = await call("find_counterpart_negotiation", id=mine["@id"], peer_connector="a", connector="b")
+    assert (theirs["role"], theirs["offer"]["assignee"]) == ("consumer", assignee)
