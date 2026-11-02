@@ -49,3 +49,28 @@ async def test_catalog_create_update_delete(call, mcp_client):
         await call("delete_catalog", id=created["@id"], connector="b")
     gone = await mcp_client.call_tool("get_catalog", {"id": created["@id"], "connector": "b"})
     assert gone.is_error and "not found" in gone.content[0].text
+
+
+async def test_data_service_and_distribution_create_update_delete(call):
+    service = await call("create_data_service", title="mcp svc", keywords=["k"], connector="b")
+    try:
+        assert service["endpointURL"] == "http://connector-b:8080/connector-b"  # set by the connector itself
+        service = await call("update_data_service", id=service["@id"], title="mcp svc v2", connector="b")
+        assert (service["title"], service["keyword"]) == ("mcp svc v2", ["k"])
+
+        dist = await call(
+            "create_distribution",
+            title="mcp dist",
+            format="HttpData-PULL",
+            access_service_id=service["@id"],
+            connector="b",
+        )
+        try:
+            assert dist["accessService"]["title"] == "mcp svc v2"
+            dist = await call("update_distribution", id=dist["@id"], format="HttpData-PUSH", connector="b")
+            assert (dist["title"], dist["format"]) == ("mcp dist", "HttpData-PUSH")
+            assert dist["accessService"]["@id"] == service["@id"]
+        finally:
+            await call("delete_distribution", id=dist["@id"], connector="b")
+    finally:
+        await call("delete_data_service", id=service["@id"], connector="b")

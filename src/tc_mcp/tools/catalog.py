@@ -1,14 +1,25 @@
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote
 
 from mcp.server.mcpserver import Context, MCPServer
 
-from tc_mcp.tools import DESTRUCTIVE, READ_ONLY, WRITE, registry, text
+from tc_mcp.tools import DESTRUCTIVE, READ_ONLY, WRITE, lang, registry, text
+
+# Transfer formats TrueConnector implements over HTTP (it.eng.datatransfer.model.DataTransferFormat).
+Format = Literal["HttpData-PULL", "HttpData-PUSH"]
 
 
 def seg(value: str) -> str:
     """An ID as one URL path segment: `/`, `?`, `#` and spaces are quoted, the colons of `urn:uuid:` are kept."""
     return quote(value, safe=":")
+
+
+def _fields(
+    title: str | None = None, description: str | None = None, keywords: list[str] | None = None
+) -> dict[str, Any]:
+    """The given descriptive fields in TrueConnector's shape; fields left as None are omitted."""
+    fields = {"title": title, "description": description and lang(description), "keyword": keywords}
+    return {k: v for k, v in fields.items() if v is not None}
 
 
 def summarize_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
@@ -87,6 +98,73 @@ def register(mcp: MCPServer) -> None:
     async def delete_catalog(ctx: Context, id: str, connector: str | None = None) -> Any:
         """Delete a catalog."""
         return await registry(ctx).get(connector).request("DELETE", f"/api/v1/catalogs/{seg(id)}")
+
+    @mcp.tool(annotations=WRITE)
+    async def create_data_service(
+        ctx: Context,
+        title: str,
+        description: str | None = None,
+        keywords: list[str] | None = None,
+        connector: str | None = None,
+    ) -> Any:
+        """Create a data service, the access point a distribution points to.
+
+        The connector always sets its endpointURL to its own protocol URL.
+        """
+        body = _fields(title, description, keywords)
+        return await registry(ctx).get(connector).request("POST", "/api/v1/dataservices", json=body)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_data_service(
+        ctx: Context,
+        id: str,
+        title: str | None = None,
+        description: str | None = None,
+        keywords: list[str] | None = None,
+        connector: str | None = None,
+    ) -> Any:
+        """Change the given fields of a data service; the others are kept."""
+        # Data service PUT merges server-side, so only the given fields are sent.
+        path = f"/api/v1/dataservices/{seg(id)}"
+        return await registry(ctx).get(connector).request("PUT", path, json=_fields(title, description, keywords))
+
+    @mcp.tool(annotations=WRITE)
+    async def create_distribution(
+        ctx: Context,
+        title: str,
+        format: Format,
+        access_service_id: str,
+        description: str | None = None,
+        connector: str | None = None,
+    ) -> Any:
+        """Create a distribution: how a dataset is delivered (format) and through which data service."""
+        client = registry(ctx).get(connector)
+        service = await client.request("GET", f"/api/v1/dataservices/{seg(access_service_id)}")
+        body = {**_fields(title, description), "format": format, "accessService": service}
+        return await client.request("POST", "/api/v1/distributions", json=body)
+
+    @mcp.tool(annotations=WRITE)
+    async def update_distribution(
+        ctx: Context,
+        id: str,
+        title: str | None = None,
+        format: Format | None = None,
+        access_service_id: str | None = None,
+        description: str | None = None,
+        connector: str | None = None,
+    ) -> Any:
+        """Change the given fields of a distribution; the others are kept."""
+        # Distribution PUT replaces the whole object, so merge onto the current one.
+        client = registry(ctx).get(connector)
+        path = f"/api/v1/distributions/{seg(id)}"
+        distribution = {**await client.request("GET", path), **_fields(title, description)}
+        if format:
+            distribution["format"] = format
+        if access_service_id:
+            distribution["accessService"] = await client.request(
+                "GET", f"/api/v1/dataservices/{seg(access_service_id)}"
+            )
+        return await client.request("PUT", path, json=distribution)
 
     _register_readers(mcp, "dataset", "datasets", "/api/v1/datasets")
     _register_readers(mcp, "distribution", "distributions", "/api/v1/distributions")

@@ -921,5 +921,95 @@
       ],
       "timestamp": "2026-10-29T12:25:27Z"
     }
+  },
+  "data_service": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "success": true,
+      "message": "Fetched data service",
+      "data": {
+        "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+        "conformsTo": "DataService Specification 2025-1",
+        "createdBy": "admin@mail.com",
+        "creator": "Engineering Informatica S.p.A.",
+        "description": [
+          {
+            "value": "DSP TRUEConnector service offering team information",
+            "language": "en"
+          }
+        ],
+        "endpointDescription": "connector",
+        "endpointURL": "http://connector-a:8080/connector-a",
+        "identifier": "DSP TRUE Connector Unique identifier for testing",
+        "issued": "2024-04-23T16:26:00Z",
+        "keyword": [
+          "REST",
+          "transfer"
+        ],
+        "lastModifiedBy": "admin@mail.com",
+        "modified": "2024-04-23T16:26:00Z",
+        "tenantId": "connector-a",
+        "theme": [
+          "Data"
+        ],
+        "title": "DSP TRUE Connector",
+        "type": "DataService",
+        "version": 0
+      },
+      "timestamp": "2026-11-02T07:49:52Z"
+    }
+  },
+  "distribution": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "success": true,
+      "message": "Fetched distribution",
+      "data": {
+        "@id": "urn:uuid:1dc45797-pull-4932-8baf-ab7fd66ql4d5",
+        "format": "HttpData-PULL",
+        "accessService": {
+          "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+          "conformsTo": "DataService Specification 2025-1",
+          "createdBy": "admin@mail.com",
+          "creator": "Engineering Informatica S.p.A.",
+          "description": [
+            {
+              "value": "DSP TRUEConnector service offering team information",
+              "language": "en"
+            }
+          ],
+          "endpointDescription": "connector",
+          "endpointURL": "http://connector-a:8080/connector-a",
+          "identifier": "DSP TRUE Connector Unique identifier for testing",
+          "issued": "2024-04-23T16:26:00Z",
+          "keyword": [
+            "REST",
+            "transfer"
+          ],
+          "lastModifiedBy": "admin@mail.com",
+          "modified": "2024-04-23T16:26:00Z",
+          "tenantId": "connector-a",
+          "theme": [
+            "Data"
+          ],
+          "title": "DSP TRUE Connector",
+          "type": "DataService",
+          "version": 0
+        },
+        "createdBy": "admin@mail.com",
+        "description": null,
+        "hasPolicy": null,
+        "issued": "2024-04-23T16:26:00Z",
+        "lastModifiedBy": "admin@mail.com",
+        "modified": "2024-04-23T16:26:00Z",
+        "tenantId": "connector-a",
+        "title": "HTTP Data PULL",
+        "type": "Distribution",
+        "version": 0
+      },
+      "timestamp": "2026-11-02T07:49:52Z"
+    }
   }
 }

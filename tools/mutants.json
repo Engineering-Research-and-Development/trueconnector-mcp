@@ -72,5 +72,16 @@
   {"name": "WRITE marked idempotent", "file": "src/tc_mcp/tools/__init__.py", "old": "idempotent_hint=False)", "new": "idempotent_hint=True)"},
   {"name": "dataset formats unwrapped", "file": "src/tc_mcp/tools/catalog.py", "old": "return {\"formats\": await registry(ctx).get(connector).request(\"GET\", f\"/api/v1/datasets/{seg(id)}/formats\")}", "new": "return await registry(ctx).get(connector).request(\"GET\", f\"/api/v1/datasets/{seg(id)}/formats\")"},
   {"name": "artifacts ignores artifact_id", "file": "src/tc_mcp/tools/catalog.py", "old": "(f\"/{seg(artifact_id)}\" if artifact_id else \"\")", "new": "\"\""},
-  {"name": "artifacts unwrapped", "file": "src/tc_mcp/tools/catalog.py", "old": "return {\"artifacts\": await registry(ctx).get(connector).request(\"GET\", path)}", "new": "return await registry(ctx).get(connector).request(\"GET\", path)"}
+  {"name": "artifacts unwrapped", "file": "src/tc_mcp/tools/catalog.py", "old": "return {\"artifacts\": await registry(ctx).get(connector).request(\"GET\", path)}", "new": "return await registry(ctx).get(connector).request(\"GET\", path)"},
+
+  {"name": "distribution embeds bare id", "file": "src/tc_mcp/tools/catalog.py", "old": "\"format\": format, \"accessService\": service}", "new": "\"format\": format, \"accessService\": {\"@id\": access_service_id}}"},
+  {"name": "update_distribution sends only given fields", "file": "src/tc_mcp/tools/catalog.py", "old": "distribution = {**await client.request(\"GET\", path), **_fields(title, description)}", "new": "distribution = _fields(title, description)"},
+  {"name": "update_distribution ignores format", "file": "src/tc_mcp/tools/catalog.py", "old": "            distribution[\"format\"] = format\n", "new": "            pass\n"},
+  {"name": "update_distribution ignores service", "file": "src/tc_mcp/tools/catalog.py", "old": "        if access_service_id:\n            distribution[\"accessService\"]", "new": "        if False:\n            distribution[\"accessService\"]"},
+  {"name": "update_distribution always looks up service", "file": "src/tc_mcp/tools/catalog.py", "old": "        if access_service_id:\n            distribution[\"accessService\"] = await client.request(\n                \"GET\", f\"/api/v1/dataservices/{seg(access_service_id)}\"", "new": "        if True:\n            distribution[\"accessService\"] = await client.request(\n                \"GET\", f\"/api/v1/dataservices/{seg(access_service_id or 'x')}\""},
+  {"name": "format accepts any string", "file": "src/tc_mcp/tools/catalog.py", "old": "Format = Literal[\"HttpData-PULL\", \"HttpData-PUSH\"]", "new": "Format = str"},
+  {"name": "_fields keeps None", "file": "src/tc_mcp/tools/catalog.py", "old": "return {k: v for k, v in fields.items() if v is not None}", "new": "return fields"},
+  {"name": "description not wrapped", "file": "src/tc_mcp/tools/catalog.py", "old": "\"description\": description and lang(description)", "new": "\"description\": description"},
+  {"name": "create_data_service sends endpointURL", "file": "src/tc_mcp/tools/catalog.py", "old": "body = _fields(title, description, keywords)\n", "new": "body = {**_fields(title, description, keywords), \"endpointURL\": None}\n"},
+  {"name": "update_data_service not registered as write", "file": "src/tc_mcp/tools/catalog.py", "old": "    @mcp.tool(annotations=WRITE)\n    async def update_data_service(", "new": "    @mcp.tool(annotations=DESTRUCTIVE)\n    async def update_data_service("}
 ]
