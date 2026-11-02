@@ -1,8 +1,10 @@
+import contextlib
 import json
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
 from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
 from tc_mcp.client import TCClient
@@ -247,6 +249,44 @@ def register(mcp: MCPServer) -> None:
         if offers:
             dataset["hasPolicy"] = _offers(offers)
         return await client.request("PUT", path, files=_dataset_parts(dataset, external_url, external_authorization))
+
+    @mcp.tool(annotations=WRITE)
+    async def publish_dataset(
+        ctx: Context,
+        title: str,
+        description: str,
+        offers: Offers,
+        external_url: HttpUrl,
+        format: Format = "HttpData-PULL",
+        external_authorization: str | None = None,
+        keywords: list[str] | None = None,
+        connector: str | None = None,
+    ) -> Any:
+        """Publish data that lives at `external_url` in one call: data service, distribution and dataset.
+
+        Ask the user for the usage policy (`offers`) rather than inventing one. If any step fails, what this
+        call created so far is deleted again, so nothing half-published is left behind. Returns the dataset.
+        """
+        client = registry(ctx).get(connector)
+        created: list[str] = []
+        try:
+            service = await client.request("POST", "/api/v1/dataservices", json=_fields(f"{title} service"))
+            created.append(f"/api/v1/dataservices/{seg(service['@id'])}")
+            body = {**_fields(f"{title} ({format})"), "format": format, "accessService": service}
+            distribution = await client.request("POST", "/api/v1/distributions", json=body)
+            created.append(f"/api/v1/distributions/{seg(distribution['@id'])}")
+            dataset = {
+                **_fields(title, description, keywords),
+                "distribution": [distribution],
+                "hasPolicy": _offers(offers),
+            }
+            files = _dataset_parts(dataset, external_url, external_authorization)
+            return await client.request("POST", "/api/v1/datasets", files=files)
+        except ToolError as e:
+            for path in reversed(created):
+                with contextlib.suppress(ToolError):
+                    await client.request("DELETE", path)
+            raise ToolError(f"{e} (publish_dataset deleted the {len(created)} object(s) it had created)") from e
 
     _register_readers(mcp, "dataset", "datasets", "/api/v1/datasets")
     _register_readers(mcp, "distribution", "distributions", "/api/v1/distributions")

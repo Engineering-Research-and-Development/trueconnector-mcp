@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
@@ -118,3 +120,50 @@ async def test_dataset_create_update_delete(call):
     finally:
         await call("delete_distribution", id=dist["@id"], connector="b")
         await call("delete_data_service", id=service["@id"], connector="b")
+
+
+async def test_resources_read_live(mcp_client):
+    names = json.loads((await mcp_client.read_resource("trueconnector://connectors")).contents[0].text)
+    assert [c["name"] for c in names] == ["a", "b"]
+
+    catalog = json.loads((await mcp_client.read_resource("trueconnector://b/catalog")).contents[0].text)
+    dataset_id = catalog["dataset"][0]["@id"]
+    dataset = json.loads((await mcp_client.read_resource(f"trueconnector://b/datasets/{dataset_id}")).contents[0].text)
+    assert dataset["@id"] == dataset_id
+
+
+async def test_publish_on_b_and_discover_from_a(call, mcp_client):
+    """The provider/consumer round trip: publish on b, find it from a through the DSP catalog, then remove it."""
+    offer = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "3"}]}
+    dataset = await call(
+        "publish_dataset",
+        title="mcp flow",
+        description="end-to-end catalog flow",
+        offers=[offer],
+        external_url="https://example.com/flow.json",
+        connector="b",
+    )
+    [distribution] = dataset["distribution"]
+    service_id = distribution["accessService"]["@id"]
+    try:
+        own = await call("get_own_catalog", connector="b")
+        assert dataset["@id"] in [d["@id"] for d in own["dataset"]]
+
+        remote = await call("browse_remote_catalog", peer="b", connector="a")
+        [seen] = [d for d in remote["datasets"] if d["id"] == dataset["@id"]]
+        assert (seen["title"], seen["formats"]) == ("mcp flow", ["HttpData-PULL"])
+        assert seen["offers"][0]["permission"] == [offer]
+
+        await call("update_dataset", id=dataset["@id"], description="updated", connector="b")
+        uri = f"trueconnector://b/datasets/{dataset['@id']}"
+        as_resource = json.loads((await mcp_client.read_resource(uri)).contents[0].text)
+        assert as_resource["description"] == [{"value": "updated", "language": "en"}]
+    finally:
+        await call("delete_dataset", id=dataset["@id"], connector="b")
+        await call("delete_distribution", id=distribution["@id"], connector="b")
+        await call("delete_data_service", id=service_id, connector="b")
+
+    remote = await call("browse_remote_catalog", peer="b", connector="a")
+    assert dataset["@id"] not in [d["id"] for d in remote["datasets"]]
+    for tool, id in [("get_dataset", dataset["@id"]), ("get_distribution", distribution["@id"])]:
+        assert (await mcp_client.call_tool(tool, {"id": id, "connector": "b"})).is_error

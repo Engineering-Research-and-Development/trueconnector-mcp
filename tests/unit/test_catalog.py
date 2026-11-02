@@ -113,7 +113,7 @@ async def test_tool_catalog_and_annotations():
     reads |= {f"get_{kind}" for kind in ("dataset", "distribution", "data_service")}
     reads |= {"get_dataset_formats", "get_dataset_artifact", "get_artifacts"}
     kinds = ("catalog", "data_service", "distribution", "dataset")
-    writes = {f"{verb}_{kind}" for verb in ("create", "update") for kind in kinds}
+    writes = {f"{verb}_{kind}" for verb in ("create", "update") for kind in kinds} | {"publish_dataset"}
     deletes = {f"delete_{kind}" for kind in ("catalog", "dataset", "distribution", "data_service")}
     assert set(tools) == reads | writes | deletes | {"get_dspace_version"}
     for name in reads:
@@ -400,3 +400,77 @@ async def test_update_dataset_replaces_offers_distributions_and_artifact_when_gi
         DATASET["title"],
     )
     assert parts == {"url": "http://data.example/v2"}
+
+
+PUBLISH_ARGS = {
+    "title": "sensors",
+    "description": "hourly readings",
+    "offers": [COUNT_5],
+    "external_url": "https://data.example/sensors.json",
+    "connector": "a",
+}
+SERVICE_PATH = f"/api/v1/dataservices/{SERVICE['@id']}"
+DISTRIBUTION_PATH = f"/api/v1/distributions/{DISTRIBUTION['@id']}"
+
+
+async def test_publish_dataset_chains_service_distribution_and_dataset():
+    fake = FakeConnector(
+        {
+            ("POST", "/api/v1/dataservices"): "data_service",
+            ("POST", "/api/v1/distributions"): "distribution",
+            ("POST", "/api/v1/datasets"): "dataset",
+        }
+    )
+
+    result = await call(fake, "publish_dataset", **PUBLISH_ARGS)
+
+    assert not result.is_error, result.content
+    assert json.loads(result.content[0].text) == DATASET
+    assert [r.url.path for r in fake.requests] == ["/api/v1/dataservices", "/api/v1/distributions", "/api/v1/datasets"]
+    service, distribution = (json.loads(r.content) for r in fake.requests[:2])
+    assert service == {"title": "sensors service"}
+    assert distribution == {"title": "sensors (HttpData-PULL)", "format": "HttpData-PULL", "accessService": SERVICE}
+    parts = form_parts(fake.requests[2])
+    dataset = json.loads(parts.pop("dataset"))
+    assert dataset["distribution"] == [DISTRIBUTION]  # the created one, as the connector returned it
+    assert dataset["hasPolicy"] == [{"permission": [COUNT_5]}]
+    assert parts == {"url": "https://data.example/sensors.json"}
+
+
+async def test_publish_dataset_deletes_what_it_created_when_a_step_fails():
+    fake = FakeConnector(
+        {
+            ("POST", "/api/v1/dataservices"): "data_service",
+            ("POST", "/api/v1/distributions"): "distribution",
+            ("POST", "/api/v1/datasets"): "error_500",
+            ("DELETE", DISTRIBUTION_PATH): "envelope_no_data",
+            ("DELETE", SERVICE_PATH): "envelope_no_data",
+        }
+    )
+
+    result = await call(fake, "publish_dataset", **PUBLISH_ARGS)
+
+    assert result.is_error
+    assert "connector internal error" in result.content[0].text
+    assert "deleted the 2 object(s) it had created" in result.content[0].text
+    assert [(r.method, r.url.path) for r in fake.requests[3:]] == [
+        ("DELETE", DISTRIBUTION_PATH),
+        ("DELETE", SERVICE_PATH),
+    ]
+
+
+async def test_publish_dataset_rollback_survives_a_failing_delete():
+    fake = FakeConnector(
+        {
+            ("POST", "/api/v1/dataservices"): "data_service",
+            ("POST", "/api/v1/distributions"): "error_400",
+            ("DELETE", SERVICE_PATH): "error_500",
+        }
+    )
+
+    result = await call(fake, "publish_dataset", **PUBLISH_ARGS)
+
+    assert result.is_error
+    text = result.content[0].text
+    assert "rejected" in text and "deleted the 1 object(s)" in text  # the original error, not the cleanup's
+    assert fake.calls("DELETE", SERVICE_PATH)

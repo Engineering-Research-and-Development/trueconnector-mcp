@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 import httpx2
 from mcp.server.mcpserver import MCPServer
 
+from tc_mcp import prompts, resources
 from tc_mcp.client import Registry
 from tc_mcp.config import Settings
 from tc_mcp.tools import catalog, ops
@@ -21,4 +22,6 @@ def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None
     mcp = MCPServer("trueconnector", lifespan=lifespan)
     ops.register(mcp)
     catalog.register(mcp)
+    resources.register(mcp, settings)
+    prompts.register(mcp)
     return mcp

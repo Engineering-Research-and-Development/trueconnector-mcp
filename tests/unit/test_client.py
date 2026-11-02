@@ -75,7 +75,14 @@ async def test_error_shapes_map_to_tool_errors(name, expected):
 
 
 def test_unexpected_status_is_reported_with_its_code():
-    assert "unexpected HTTP 404" in str(_error(404, {"message": "nope"}, "a GET /x"))
+    assert "unexpected HTTP 409" in str(_error(409, {"message": "nope"}, "a GET /x"))
+
+
+def test_not_found_is_reported_as_such():
+    # Catalog and artifact lookups answer 404 (negotiations answer 400, see error_400).
+    assert str(_error(404, {"message": "Catalog with id x not found"}, "a GET /x")) == (
+        "a GET /x: not found (Catalog with id x not found)"
+    )
 
 
 async def test_same_state_transition_is_already_in_state():

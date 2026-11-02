@@ -34,7 +34,9 @@ class Constraint(BaseModel):
 
 class Permission(BaseModel):
     action: Literal["USE", "ANONYMIZE"] = "USE"
-    constraint: list[Constraint] = []
+    # TrueConnector accepts and negotiates an unconstrained permission, but the consumer's download then always
+    # fails ("Policy check returned an invalid response"), so the data could never be obtained.
+    constraint: list[Constraint] = Field(min_length=1)
 
 
 def registry(ctx: Context) -> Registry:

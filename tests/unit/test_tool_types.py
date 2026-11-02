@@ -22,6 +22,12 @@ async def test_invalid_left_operand_is_rejected_before_the_tool_runs():
         rejected = await client.call_tool("publish", {"permissions": bad})
         assert rejected.is_error
         assert "leftOperand" in rejected.content[0].text
+
+        # Unconstrained permissions negotiate fine but the download always fails, so they are refused up front.
+        for unconstrained in ({"constraint": []}, {"action": "USE"}):
+            refused = await client.call_tool("publish", {"permissions": [unconstrained]})
+            assert refused.is_error
+            assert "constraint" in refused.content[0].text
         assert ran == []
 
         accepted = await client.call_tool("publish", {"permissions": good})
