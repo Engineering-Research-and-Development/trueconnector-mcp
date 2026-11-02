@@ -145,7 +145,20 @@
   {"name": "explicit assignee ignored", "file": "src/tc_mcp/tools/negotiation.py", "old": "offer[\"assignee\"] = assignee or f", "new": "offer[\"assignee\"] = f"},
   {"name": "trailing slash kept in default assignee", "file": "src/tc_mcp/tools/negotiation.py", "old": "{forward_to.rstrip('/')}/consumer", "new": "{forward_to}/consumer"},
   {"name": "offer posted to request endpoint", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"POST\", \"/api/v1/negotiations/offer\"", "new": "\"POST\", \"/api/v1/negotiations/request\""},
-  {"name": "contract writes not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "for write in (request_contract, offer_contract):", "new": "for write in (request_contract,):"},
+  {"name": "contract writes not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "for write in (request_contract, offer_contract, send_counteroffer):", "new": "for write in (request_contract, send_counteroffer):"},
   {"name": "contract writes marked read-only", "file": "src/tc_mcp/tools/negotiation.py", "old": "write, annotations=WRITE,", "new": "write, annotations=READ_ONLY,"},
-  {"name": "state machine left out of write descriptions", "file": "src/tc_mcp/tools/negotiation.py", "old": "description=f\"{inspect.cleandoc(write.__doc__ or '')}\\n\\n{STATE_MACHINE}\"", "new": "description=inspect.cleandoc(write.__doc__ or '')"}
+  {"name": "state machine left out of write descriptions", "file": "src/tc_mcp/tools/negotiation.py", "old": "description=f\"{inspect.cleandoc(write.__doc__ or '')}\\n\\n{STATE_MACHINE}\"", "new": "description=inspect.cleandoc(write.__doc__ or '')"},
+  {"name": "counteroffer uses stored @id", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"@id\": stored[\"originalId\"],", "new": "\"@id\": stored[\"@id\"],"},
+  {"name": "counteroffer without target", "file": "src/tc_mcp/tools/negotiation.py", "old": "        \"target\": stored[\"target\"],\n        \"assigner\": stored[\"assigner\"],\n", "new": "        \"assigner\": stored[\"assigner\"],\n"},
+  {"name": "counteroffer without assigner", "file": "src/tc_mcp/tools/negotiation.py", "old": "        \"assigner\": stored[\"assigner\"],\n        \"assignee\": assignee,\n", "new": "        \"assignee\": assignee,\n"},
+  {"name": "stored assignee ignored", "file": "src/tc_mcp/tools/negotiation.py", "old": "assignee = stored.get(\"assignee\") or fallback", "new": "assignee = fallback"},
+  {"name": "no assignee fallback", "file": "src/tc_mcp/tools/negotiation.py", "old": "assignee = stored.get(\"assignee\") or fallback", "new": "assignee = stored.get(\"assignee\")"},
+  {"name": "provider falls back to own callback", "file": "src/tc_mcp/tools/negotiation.py", "old": "fallback = negotiation.get(\"callbackAddress\") if provider else", "new": "fallback = None if provider else"},
+  {"name": "consumer falls back to provider callback", "file": "src/tc_mcp/tools/negotiation.py", "old": "else own and f\"{own.rstrip('/')}/consumer\"", "new": "else negotiation.get(\"callbackAddress\")"},
+  {"name": "missing assignee sent anyway", "file": "src/tc_mcp/tools/negotiation.py", "old": "    if not assignee:\n        source =", "new": "    if False:\n        source ="},
+  {"name": "only first permission sent", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"permission\": [p.model_dump() for p in permissions],", "new": "\"permission\": [permissions[0].model_dump()],"},
+  {"name": "empty permissions allowed", "file": "src/tc_mcp/tools/negotiation.py", "old": "Field(min_length=1, description=\"All go into the one counteroffer\")", "new": "Field(description=\"All go into the one counteroffer\")"},
+  {"name": "counteroffer endpoint ignores role", "file": "src/tc_mcp/tools/negotiation.py", "old": "action = \"offer\" if provider else \"request\"", "new": "action = \"offer\""},
+  {"name": "counteroffer roles swapped", "file": "src/tc_mcp/tools/negotiation.py", "old": "provider = negotiation[\"role\"] == \"provider\"", "new": "provider = negotiation[\"role\"] == \"consumer\""},
+  {"name": "counteroffer not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "for write in (request_contract, offer_contract, send_counteroffer):", "new": "for write in (request_contract, offer_contract):"}
 ]

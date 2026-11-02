@@ -1,12 +1,23 @@
 import inspect
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from tc_mcp.client import Rejected
-from tc_mcp.tools import READ_ONLY, WRITE, Page, PageNumber, PageSize, Role, page_params, registry, seg
+from tc_mcp.tools import (
+    READ_ONLY,
+    WRITE,
+    Page,
+    PageNumber,
+    PageSize,
+    Permission,
+    Role,
+    page_params,
+    registry,
+    seg,
+)
 
 NegotiationState = Literal["REQUESTED", "OFFERED", "ACCEPTED", "AGREED", "VERIFIED", "FINALIZED", "TERMINATED"]
 
@@ -155,6 +166,39 @@ async def offer_contract(
     return await client.request("POST", "/api/v1/negotiations/offer", json={"Forward-To": forward_to, "offer": offer})
 
 
+async def send_counteroffer(
+    ctx: Context,
+    negotiation_id: str,
+    permissions: Annotated[list[Permission], Field(min_length=1, description="All go into the one counteroffer")],
+    connector: str | None = None,
+) -> Any:
+    """Answer the other side with different usage terms; only the permissions change.
+
+    On a provider record: REQUESTED → OFFERED. On a consumer record: OFFERED → REQUESTED. The offer id, target and
+    parties are taken from the negotiation, as TrueConnector requires.
+    """
+    client = registry(ctx).get(connector)
+    negotiation = await client.request("GET", f"/api/v1/negotiations/{seg(negotiation_id)}")
+    stored = negotiation["offer"]
+    provider = negotiation["role"] == "provider"
+    # The counteroffer replaces the stored offer, and agree builds the agreement from it: it needs an assignee.
+    own = client.connector.protocol_url
+    fallback = negotiation.get("callbackAddress") if provider else own and f"{own.rstrip('/')}/consumer"
+    assignee = stored.get("assignee") or fallback
+    if not assignee:
+        source = "callbackAddress" if provider else f"protocol_url configured for connector '{client.connector.name}'"
+        raise ToolError(f"negotiation {negotiation_id} has no assignee to keep and no {source} to derive one from")
+    offer = {
+        "@id": stored["originalId"],
+        "target": stored["target"],
+        "assigner": stored["assigner"],
+        "assignee": assignee,
+        "permission": [p.model_dump() for p in permissions],
+    }
+    action = "offer" if provider else "request"
+    return await client.request("PUT", f"/api/v1/negotiations/{seg(negotiation_id)}/{action}", json=offer)
+
+
 def register(mcp: MCPServer) -> None:
     for read in (list_negotiations, get_negotiation, find_counterpart_negotiation):
         mcp.add_tool(
@@ -162,7 +206,7 @@ def register(mcp: MCPServer) -> None:
         )
     for check in (validate_offer, enforce_agreement):
         mcp.add_tool(check, annotations=READ_ONLY)
-    for write in (request_contract, offer_contract):
+    for write in (request_contract, offer_contract, send_counteroffer):
         mcp.add_tool(
             write, annotations=WRITE, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
         )

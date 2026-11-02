@@ -69,3 +69,27 @@ async def test_offer_contract_stores_the_assignee_on_both_sides(call):
     assert (mine["role"], mine["state"], mine["offer"]["assignee"]) == ("provider", "OFFERED", assignee)
     theirs = await call("find_counterpart_negotiation", id=mine["@id"], peer_connector="a", connector="b")
     assert (theirs["role"], theirs["offer"]["assignee"]) == ("consumer", assignee)
+
+
+def count(n):
+    return {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": str(n)}]}
+
+
+async def test_counteroffers_both_ways_keep_the_assignee(call, manual_negotiation):
+    dataset = (await call("browse_remote_catalog", peer="b", connector="a"))["datasets"][0]
+    mine = await call("request_contract", peer="b", dataset_id=dataset["id"], connector="a")
+    theirs = await call("find_counterpart_negotiation", id=mine["@id"], peer_connector="b", connector="a")
+    assert theirs["state"] == "REQUESTED"  # manual mode: the provider has to act
+
+    await call("send_counteroffer", negotiation_id=theirs["@id"], permissions=[count(3)], connector="b")
+
+    mine = await call("get_negotiation", id=mine["@id"], connector="a")
+    assert mine["state"] == "OFFERED"
+    assert mine["offer"]["permission"][0]["constraint"][0]["rightOperand"] == "3"
+
+    await call("send_counteroffer", negotiation_id=mine["@id"], permissions=[count(4)], connector="a")
+
+    theirs = await call("get_negotiation", id=theirs["@id"], connector="b")
+    assert theirs["state"] == "REQUESTED"
+    assert theirs["offer"]["permission"][0]["constraint"][0]["rightOperand"] == "4"
+    assert theirs["offer"]["assignee"] == "http://connector-a:8080/connector-a/consumer"  # agree will need it

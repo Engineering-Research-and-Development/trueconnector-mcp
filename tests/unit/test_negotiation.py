@@ -120,6 +120,7 @@ async def test_negotiation_tools_describe_the_state_machine_and_list_has_an_outp
         "find_counterpart_negotiation",
         "request_contract",
         "offer_contract",
+        "send_counteroffer",
     ):
         assert "OFFERED -> REQUESTED | ACCEPTED | TERMINATED" in tools[name].description, name
     schema = tools["list_negotiations"].output_schema
@@ -280,3 +281,103 @@ async def test_offer_contract_rejects_an_offer_not_in_own_catalog():
     assert result.is_error
     assert "dataset urn:uuid:other is not in the catalog of b" in result.content[0].text
     assert not fake.calls("POST", "/api/v1/negotiations/offer")
+
+
+COUNT_3 = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "3"}]}
+NEG_ID = MINE["@id"]
+STORED = MINE["offer"]  # a live consumer-side offer: its own @id, the catalog offer as originalId, no assignee
+CONSUMER_CALLBACK = "http://connector-a:8080/connector-a/consumer"
+
+
+def record(role, assignee=None, callback=None):
+    return {**MINE, "role": role, "callbackAddress": callback, "offer": {**STORED, "assignee": assignee}}
+
+
+def countered(fake, action):
+    return json.loads(fake.calls("PUT", f"/api/v1/negotiations/{NEG_ID}/{action}")[0].content)
+
+
+@pytest.mark.parametrize(("role", "action"), [("provider", "offer"), ("consumer", "request")])
+async def test_counteroffer_uses_original_offer_id_target_and_assignee(role, action):
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): one(record(role, assignee="urn:stored", callback="http://cb")),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/{action}"): one(MINE),
+        }
+    )
+
+    result = await call(fake, "send_counteroffer", negotiation_id=NEG_ID, permissions=[COUNT_3], connector="b")
+
+    assert not result.is_error, result.content
+    assert countered(fake, action) == {
+        "@id": STORED["originalId"],
+        "target": STORED["target"],
+        "assigner": STORED["assigner"],
+        "assignee": "urn:stored",
+        "permission": [COUNT_3],
+    }
+
+
+async def test_provider_counteroffer_falls_back_to_callback_address_as_assignee():
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): one(record("provider", callback=CONSUMER_CALLBACK)),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/offer"): one(MINE),
+        }
+    )
+
+    await call(fake, "send_counteroffer", negotiation_id=NEG_ID, permissions=[COUNT_3], connector="a")
+
+    assert countered(fake, "offer")["assignee"] == CONSUMER_CALLBACK
+
+
+async def test_consumer_counteroffer_falls_back_to_own_consumer_callback_as_assignee():
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): one(record("consumer", callback="http://provider")),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/request"): one(MINE),
+        }
+    )
+
+    await call(fake, "send_counteroffer", negotiation_id=NEG_ID, permissions=[COUNT_3], connector="b")
+
+    assert countered(fake, "request")["assignee"] == f"{B_PROTOCOL}/consumer"
+
+
+@pytest.mark.parametrize(
+    ("role", "missing"),
+    [("provider", "no callbackAddress"), ("consumer", "no protocol_url configured for connector 'a'")],
+)
+async def test_counteroffer_without_any_assignee_is_refused_locally(role, missing):
+    # Connector a has no protocol_url; a provider record without callbackAddress has nothing to fall back to either.
+    fake = FakeConnector({("GET", f"/api/v1/negotiations/{NEG_ID}"): one(record(role, callback=None))})
+
+    result = await call(fake, "send_counteroffer", negotiation_id=NEG_ID, permissions=[COUNT_3], connector="a")
+
+    assert result.is_error
+    assert f"negotiation {NEG_ID} has no assignee to keep and {missing} to derive one from" in result.content[0].text
+    assert [r.method for r in fake.requests] == ["GET"]
+
+
+@pytest.mark.parametrize("permissions", [[], [{"action": "USE", "constraint": []}]])
+async def test_counteroffer_rejects_missing_terms_before_sending(permissions):
+    fake = FakeConnector({})
+
+    result = await call(fake, "send_counteroffer", negotiation_id=NEG_ID, permissions=permissions, connector="b")
+
+    assert result.is_error
+    assert fake.requests == []
+
+
+async def test_counteroffer_puts_every_permission_into_the_one_offer():
+    count_5 = {**COUNT_3, "constraint": [{**COUNT_3["constraint"][0], "rightOperand": "5"}]}
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): one(record("provider", assignee="urn:stored")),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/offer"): one(MINE),
+        }
+    )
+
+    await call(fake, "send_counteroffer", negotiation_id=NEG_ID, permissions=[COUNT_3, count_5], connector="b")
+
+    assert countered(fake, "offer")["permission"] == [COUNT_3, count_5]
