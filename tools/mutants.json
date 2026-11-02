@@ -107,5 +107,18 @@
   {"name": "publish: url part dropped", "file": "src/tc_mcp/tools/datasets.py", "old": "files = _dataset_parts(dataset, external_url, external_authorization)\n        return", "new": "files = _dataset_parts(dataset, None, external_authorization)\n        return"},
   {"name": "publish: original error swallowed", "file": "src/tc_mcp/tools/datasets.py", "old": "raise ToolError(f\"{e} (publish_dataset deleted", "new": "raise ToolError(f\"publish failed (publish_dataset deleted"},
   {"name": "prompt invents the policy", "file": "src/tc_mcp/prompts.py", "old": "1. Ask me which usage policy consumers must accept", "new": "1. Pick a sensible usage policy consumers must accept"},
-  {"name": "prompt drops the external url", "file": "src/tc_mcp/prompts.py", "old": "external_url=\"{external_url}\",\n", "new": "\n"}
+  {"name": "prompt drops the external url", "file": "src/tc_mcp/prompts.py", "old": "external_url=\"{external_url}\",\n", "new": "\n"},
+  {"name": "filters not camelCased", "file": "src/tc_mcp/tools/__init__.py", "old": "w.capitalize() if i else w", "new": "w"},
+  {"name": "None filters sent", "file": "src/tc_mcp/tools/__init__.py", "old": "**{k: v for k, v in camel.items() if v is not None}", "new": "**camel"},
+  {"name": "page size unbounded", "file": "src/tc_mcp/tools/__init__.py", "old": "PageSize = Annotated[int, Field(ge=1, le=100)]", "new": "PageSize = Annotated[int, Field(ge=1)]"},
+  {"name": "negative page allowed", "file": "src/tc_mcp/tools/__init__.py", "old": "Field(ge=0, description=\"0-based page number\")", "new": "Field(description=\"0-based page number\")"},
+  {"name": "state accepts any string", "file": "src/tc_mcp/tools/negotiation.py", "old": "    state: NegotiationState | None = None,", "new": "    state: str | None = None,"},
+  {"name": "role accepts any string", "file": "src/tc_mcp/tools/negotiation.py", "old": "    role: Role | None = None,\n    consumer_pid", "new": "    role: str | None = None,\n    consumer_pid"},
+  {"name": "list ignores a filter", "file": "src/tc_mcp/tools/negotiation.py", "old": "provider_pid=provider_pid, assigner=assigner", "new": "provider_pid=provider_pid"},
+  {"name": "list returns untyped dict (no output schema)", "file": "src/tc_mcp/tools/negotiation.py", "old": "    connector: str | None = None,\n) -> Page:", "new": "    connector: str | None = None,\n) -> Any:"},
+  {"name": "counterpart keeps same role", "file": "src/tc_mcp/tools/negotiation.py", "old": "if record.get(\"role\") != mine.get(\"role\"):", "new": "if True:"},
+  {"name": "counterpart searched on own connector", "file": "src/tc_mcp/tools/negotiation.py", "old": "theirs = await reg.get(peer_connector).request(", "new": "theirs = await reg.get(connector).request("},
+  {"name": "counterpart not filtered by consumerPid", "file": "src/tc_mcp/tools/negotiation.py", "old": "params = page_params(0, 100, consumer_pid=mine[\"consumerPid\"])", "new": "params = page_params(0, 100)"},
+  {"name": "state machine left out of descriptions", "file": "src/tc_mcp/tools/negotiation.py", "old": "\\n\\n{STATE_MACHINE}\"", "new": "\""},
+  {"name": "negotiation tools not registered", "file": "src/tc_mcp/server.py", "old": "    negotiation.register(mcp)\n", "new": ""}
 ]
