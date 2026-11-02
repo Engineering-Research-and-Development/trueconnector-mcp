@@ -39,4 +39,5 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["integration: needs the live TrueConnector stack"]
-addopts = "-m 'not integration'"
+addopts = "-m 'not integration' --import-mode=importlib"
+pythonpath = ["tests"]

@@ -139,6 +139,8 @@ def _error(status: int, body: Any, where: str) -> ToolError:
         return ToolError(f"{where}: authentication failed, check this connector's credentials")
     if status == 403:
         return ToolError(f"{where}: forbidden, the configured account's role may not call this endpoint")
+    if status == 404:
+        return ToolError(f"{where}: not found ({message})")
     if status >= 500:
         return ToolError(
             f"{where}: connector internal error ({message}). "
