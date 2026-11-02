@@ -4,8 +4,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 
 from tc_mcp.config import Settings
-from tc_mcp.tools import registry
-from tc_mcp.tools.catalog import seg
+from tc_mcp.tools import registry, seg
 
 
 async def _get(ctx: Context, connector: str, path: str) -> Any:

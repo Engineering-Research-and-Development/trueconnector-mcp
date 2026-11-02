@@ -3,7 +3,7 @@ import json
 import anyio
 import httpx2
 import pytest
-from conftest import FIXTURES, FakeConnector, live, login_response, make_client
+from helpers import FIXTURES, FakeConnector, live, login_response, make_client
 from mcp.server.mcpserver.exceptions import ToolError
 
 from tc_mcp.client import AlreadyInState, Registry, Rejected, TCClient, _error, _unwrap

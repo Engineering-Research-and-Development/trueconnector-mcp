@@ -3,7 +3,7 @@ import json
 import httpx2
 import mcp
 import pytest
-from conftest import FIXTURES, FakeConnector
+from helpers import FIXTURES, FakeConnector
 
 from tc_mcp.config import Settings
 from tc_mcp.server import build_server

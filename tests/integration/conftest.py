@@ -1,17 +1,16 @@
 import json
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
 import httpx2
 import mcp
 import pytest
+from helpers import Call
 
 from tc_mcp.client import TCClient
 from tc_mcp.config import Settings
 from tc_mcp.server import build_server
-
-Call = Callable[..., Awaitable[Any]]
 
 
 def stack_settings() -> Settings:

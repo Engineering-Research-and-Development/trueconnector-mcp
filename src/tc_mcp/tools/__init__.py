@@ -1,6 +1,7 @@
 from typing import Any, Literal, cast
+from urllib.parse import quote
 
-from mcp.server.mcpserver import Context
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
@@ -54,3 +55,34 @@ def text(value: Any) -> str | None:
     if isinstance(value, list):
         return next((v.get("value") for v in value if isinstance(v, dict)), None)
     return value if isinstance(value, str) else None
+
+
+def seg(value: str) -> str:
+    """An ID as one URL path segment: `/`, `?`, `#` and spaces are quoted, the colons of `urn:uuid:` are kept."""
+    return quote(value, safe=":")
+
+
+def fields(
+    title: str | None = None, description: str | None = None, keywords: list[str] | None = None
+) -> dict[str, Any]:
+    """The given descriptive fields in TrueConnector's shape; fields left as None are omitted."""
+    given = {"title": title, "description": description and lang(description), "keyword": keywords}
+    return {k: v for k, v in given.items() if v is not None}
+
+
+def register_readers(mcp: MCPServer, singular: str, plural: str, path: str) -> None:
+    """list_/get_/delete_ tools for one resource kind."""
+    label = singular.replace("_", " ")
+
+    async def list_all(ctx: Context, connector: str | None = None) -> Any:
+        return {plural: await registry(ctx).get(connector).request("GET", path)}
+
+    async def get_one(ctx: Context, id: str, connector: str | None = None) -> Any:
+        return await registry(ctx).get(connector).request("GET", f"{path}/{seg(id)}")
+
+    async def delete_one(ctx: Context, id: str, connector: str | None = None) -> Any:
+        return await registry(ctx).get(connector).request("DELETE", f"{path}/{seg(id)}")
+
+    mcp.add_tool(list_all, name=f"list_{plural}", description=f"All {label}s on this connector.", annotations=READ_ONLY)
+    mcp.add_tool(get_one, name=f"get_{singular}", description=f"One {label} by ID.", annotations=READ_ONLY)
+    mcp.add_tool(delete_one, name=f"delete_{singular}", description=f"Delete a {label}.", annotations=DESTRUCTIVE)
