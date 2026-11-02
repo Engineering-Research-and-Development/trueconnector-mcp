@@ -1,4 +1,6 @@
 import json
+from email.parser import BytesParser
+from email.policy import default
 
 import httpx2
 import mcp
@@ -110,7 +112,8 @@ async def test_tool_catalog_and_annotations():
     }
     reads |= {f"get_{kind}" for kind in ("dataset", "distribution", "data_service")}
     reads |= {"get_dataset_formats", "get_dataset_artifact", "get_artifacts"}
-    writes = {f"{verb}_{kind}" for verb in ("create", "update") for kind in ("catalog", "data_service", "distribution")}
+    kinds = ("catalog", "data_service", "distribution", "dataset")
+    writes = {f"{verb}_{kind}" for verb in ("create", "update") for kind in kinds}
     deletes = {f"delete_{kind}" for kind in ("catalog", "dataset", "distribution", "data_service")}
     assert set(tools) == reads | writes | deletes | {"get_dspace_version"}
     for name in reads:
@@ -283,3 +286,117 @@ async def test_data_service_create_and_update_send_only_the_given_fields():
     created, updated = (json.loads(r.content) for r in fake.requests)
     assert created == {"title": "svc", "keyword": ["k"]}  # no endpointURL: the connector sets its own
     assert updated == {"description": [{"value": "new text", "language": "en"}]}  # PUT merges server-side
+
+
+DATASET = FIXTURES["dataset"]["body"]["data"]
+COUNT_5 = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "5"}]}
+UNTIL_2030 = {
+    "action": "USE",
+    "constraint": [{"leftOperand": "DATE_TIME", "operator": "LT", "rightOperand": "2030-01-01T00:00:00Z"}],
+}
+DATASET_ARGS = {
+    "title": "sensors",
+    "description": "hourly readings",
+    "distribution_ids": [DISTRIBUTION["@id"]],
+    "offers": [COUNT_5, UNTIL_2030],
+    "external_url": "https://data.example/sensors.json",
+    "connector": "a",
+}
+
+
+def form_parts(request: httpx2.Request) -> dict[str, str]:
+    """The multipart/form-data fields of a request, decoded with the stdlib email parser."""
+    head = f"Content-Type: {request.headers['content-type']}\r\n\r\n".encode()
+    message = BytesParser(policy=default).parsebytes(head + request.content)
+    return {
+        p.get_param("name", header="content-disposition"): p.get_payload(decode=True).decode()
+        for p in message.iter_parts()
+    }
+
+
+async def test_create_dataset_sends_multipart_with_resolved_distributions():
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/distributions/{DISTRIBUTION['@id']}"): "distribution",
+            ("POST", "/api/v1/datasets"): "dataset",
+        }
+    )
+
+    extra = {"external_authorization": "Bearer s3cret", "keywords": ["iot"]}
+    result = await call(fake, "create_dataset", **DATASET_ARGS, **extra)
+
+    assert not result.is_error, result.content
+    [post] = fake.calls("POST", "/api/v1/datasets")
+    assert post.headers["content-type"].startswith("multipart/form-data; boundary=")
+    parts = form_parts(post)
+    assert json.loads(parts.pop("dataset")) == {
+        "title": "sensors",
+        "description": [{"value": "hourly readings", "language": "en"}],
+        "keyword": ["iot"],
+        "distribution": [DISTRIBUTION],  # resolved from its id
+        "hasPolicy": [{"permission": [COUNT_5]}, {"permission": [UNTIL_2030]}],  # one offer per permission
+    }
+    assert parts == {"url": "https://data.example/sensors.json", "authorization": "Bearer s3cret"}
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"distribution_ids": []},
+        {"offers": []},
+        {"external_url": "ftp://data.example/x"},
+        {"external_url": "file:///etc/passwd"},
+        {"external_url": "https://"},
+        {"offers": [{"constraint": [{"leftOperand": "PURPOSE", "operator": "EQ", "rightOperand": "x"}]}]},
+    ],
+)
+async def test_create_dataset_validates_inputs_before_sending(bad):
+    fake = FakeConnector({})
+
+    result = await call(fake, "create_dataset", **{**DATASET_ARGS, **bad})
+
+    assert result.is_error
+    assert fake.requests == []
+
+
+async def test_update_dataset_merges_only_given_fields():
+    path = f"/api/v1/datasets/{DATASET['@id']}"
+    fake = FakeConnector({("GET", path): "dataset", ("PUT", path): "dataset"})
+
+    result = await call(fake, "update_dataset", id=DATASET["@id"], title="renamed", connector="a")
+
+    assert not result.is_error, result.content
+    assert [r.method for r in fake.requests] == ["GET", "PUT"]  # no distribution lookups
+    parts = form_parts(fake.requests[1])
+    assert json.loads(parts.pop("dataset")) == {**DATASET, "title": "renamed"}
+    assert parts == {}  # no url part: the artifact is kept
+
+
+async def test_update_dataset_replaces_offers_distributions_and_artifact_when_given():
+    path = f"/api/v1/datasets/{DATASET['@id']}"
+    fake = FakeConnector(
+        {
+            ("GET", path): "dataset",
+            ("GET", f"/api/v1/distributions/{DISTRIBUTION['@id']}"): "distribution",
+            ("PUT", path): "dataset",
+        }
+    )
+
+    await call(
+        fake,
+        "update_dataset",
+        id=DATASET["@id"],
+        distribution_ids=[DISTRIBUTION["@id"]],
+        offers=[COUNT_5],
+        external_url="http://data.example/v2",
+        connector="a",
+    )
+
+    parts = form_parts(fake.calls("PUT", path)[0])
+    dataset = json.loads(parts.pop("dataset"))
+    assert (dataset["distribution"], dataset["hasPolicy"], dataset["title"]) == (
+        [DISTRIBUTION],
+        [{"permission": [COUNT_5]}],
+        DATASET["title"],
+    )
+    assert parts == {"url": "http://data.example/v2"}

@@ -74,3 +74,47 @@ async def test_data_service_and_distribution_create_update_delete(call):
             await call("delete_distribution", id=dist["@id"], connector="b")
     finally:
         await call("delete_data_service", id=service["@id"], connector="b")
+
+
+async def test_dataset_create_update_delete(call):
+    service = await call("create_data_service", title="mcp svc", connector="b")
+    dist = await call(
+        "create_distribution", title="mcp dist", format="HttpData-PULL", access_service_id=service["@id"], connector="b"
+    )
+    count = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "3"}]}
+    until = {
+        "action": "USE",
+        "constraint": [{"leftOperand": "DATE_TIME", "operator": "LT", "rightOperand": "2030-01-01T00:00:00Z"}],
+    }
+    try:
+        dataset = await call(
+            "create_dataset",
+            title="mcp dataset",
+            description="created by the MCP tests",
+            distribution_ids=[dist["@id"]],
+            offers=[count, until],
+            external_url="https://example.com/data.json",
+            connector="b",
+        )
+        try:
+            assert (dataset["artifact"]["artifactType"], dataset["artifact"]["value"]) == (
+                "EXTERNAL",
+                "https://example.com/data.json",
+            )
+            offer_ids = [o["@id"] for o in dataset["hasPolicy"]]
+            assert len(offer_ids) == 2 and all(offer_ids)  # one offer per permission, ids set by the connector
+
+            renamed = await call("update_dataset", id=dataset["@id"], title="mcp dataset v2", connector="b")
+            assert renamed["title"] == "mcp dataset v2"
+            assert [o["@id"] for o in renamed["hasPolicy"]] == offer_ids
+            assert renamed["distribution"][0]["@id"] == dist["@id"]
+
+            moved = await call(
+                "update_dataset", id=dataset["@id"], external_url="https://example.com/v2", connector="b"
+            )
+            assert (moved["title"], moved["artifact"]["value"]) == ("mcp dataset v2", "https://example.com/v2")
+        finally:
+            await call("delete_dataset", id=dataset["@id"], connector="b")
+    finally:
+        await call("delete_distribution", id=dist["@id"], connector="b")
+        await call("delete_data_service", id=service["@id"], connector="b")

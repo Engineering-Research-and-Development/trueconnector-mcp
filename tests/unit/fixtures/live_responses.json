@@ -957,7 +957,7 @@
         "type": "DataService",
         "version": 0
       },
-      "timestamp": "2026-11-02T07:49:52Z"
+      "timestamp": "2026-11-02T08:12:18Z"
     }
   },
   "distribution": {
@@ -1009,7 +1009,169 @@
         "type": "Distribution",
         "version": 0
       },
-      "timestamp": "2026-11-02T07:49:52Z"
+      "timestamp": "2026-11-02T08:12:18Z"
+    }
+  },
+  "dataset": {
+    "status": 200,
+    "content_type": "application/json",
+    "body": {
+      "success": true,
+      "message": "Fetched dataset",
+      "data": {
+        "@id": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5",
+        "title": "TRUEConnector team information dataset",
+        "description": [
+          {
+            "value": "Dataset offering TRUEConnector instance A team information",
+            "language": "en"
+          }
+        ],
+        "keyword": [
+          "Personal information",
+          "Employee",
+          "TRUEConnector team",
+          "REST"
+        ],
+        "distribution": [
+          {
+            "@id": "urn:uuid:1dc45797-pull-4932-8baf-ab7fd66ql4d5",
+            "format": "HttpData-PULL",
+            "accessService": {
+              "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+              "conformsTo": "DataService Specification 2025-1",
+              "createdBy": "admin@mail.com",
+              "creator": "Engineering Informatica S.p.A.",
+              "description": [
+                {
+                  "value": "DSP TRUEConnector service offering team information",
+                  "language": "en"
+                }
+              ],
+              "endpointDescription": "connector",
+              "endpointURL": "http://connector-a:8080/connector-a",
+              "identifier": "DSP TRUE Connector Unique identifier for testing",
+              "issued": "2024-04-23T16:26:00Z",
+              "keyword": [
+                "REST",
+                "transfer"
+              ],
+              "lastModifiedBy": "admin@mail.com",
+              "modified": "2024-04-23T16:26:00Z",
+              "tenantId": "connector-a",
+              "theme": [
+                "Data"
+              ],
+              "title": "DSP TRUE Connector",
+              "type": "DataService",
+              "version": 0
+            },
+            "createdBy": "admin@mail.com",
+            "description": null,
+            "hasPolicy": null,
+            "issued": "2024-04-23T16:26:00Z",
+            "lastModifiedBy": "admin@mail.com",
+            "modified": "2024-04-23T16:26:00Z",
+            "tenantId": "connector-a",
+            "title": "HTTP Data PULL",
+            "type": "Distribution",
+            "version": 0
+          },
+          {
+            "@id": "urn:uuid:1dc45797-push-4932-8baf-ab7fd66ql4d5",
+            "format": "HttpData-PUSH",
+            "accessService": {
+              "@id": "urn:uuid:1dc45797-4444-conn-8baf-ab7fd66ac4d5",
+              "conformsTo": "DataService Specification 2025-1",
+              "createdBy": "admin@mail.com",
+              "creator": "Engineering Informatica S.p.A.",
+              "description": [
+                {
+                  "value": "DSP TRUEConnector service offering team information",
+                  "language": "en"
+                }
+              ],
+              "endpointDescription": "connector",
+              "endpointURL": "http://connector-a:8080/connector-a",
+              "identifier": "DSP TRUE Connector Unique identifier for testing",
+              "issued": "2024-04-23T16:26:00Z",
+              "keyword": [
+                "REST",
+                "transfer"
+              ],
+              "lastModifiedBy": "admin@mail.com",
+              "modified": "2024-04-23T16:26:00Z",
+              "tenantId": "connector-a",
+              "theme": [
+                "Data"
+              ],
+              "title": "DSP TRUE Connector",
+              "type": "DataService",
+              "version": 0
+            },
+            "createdBy": "admin@mail.com",
+            "description": null,
+            "hasPolicy": null,
+            "issued": "2024-04-23T16:26:00Z",
+            "lastModifiedBy": "admin@mail.com",
+            "modified": "2024-04-23T16:26:00Z",
+            "tenantId": "connector-a",
+            "title": "HTTP Data PUSH",
+            "type": "Distribution",
+            "version": 0
+          }
+        ],
+        "artifact": {
+          "id": "urn:uuid:fdc45798-a123-4955-8baf-vc3gh22qh3j8",
+          "artifactType": "FILE",
+          "filename": "ENG employee.json",
+          "value": "urn:uuid:fdc45798-a222-4955-8baf-ab7fd66ac4d5",
+          "authorization": null,
+          "contentType": "application/json",
+          "created": "2024-12-10T16:04:59.358Z",
+          "lastModifiedDate": "2024-12-10T16:04:59.358Z",
+          "createdBy": "admin@mail.com",
+          "lastModifiedBy": "admin@mail.com",
+          "version": 0
+        },
+        "conformsTo": "Dataset Specification 2025-1",
+        "createdBy": "admin@mail.com",
+        "creator": "Engineering Informatica S.p.A.",
+        "hasPolicy": [
+          {
+            "@id": "urn:uuid:fdc45798-a123-4955-8baf-ab7fd66ac4d5",
+            "assignee": null,
+            "assigner": null,
+            "permission": [
+              {
+                "assigner": null,
+                "assignee": null,
+                "target": null,
+                "action": "USE",
+                "constraint": [
+                  {
+                    "leftOperand": "COUNT",
+                    "operator": "LTEQ",
+                    "rightOperand": "5"
+                  }
+                ]
+              }
+            ],
+            "target": null
+          }
+        ],
+        "identifier": "Unique identifier for test Dataset",
+        "issued": "2024-04-23T16:26:00Z",
+        "lastModifiedBy": "admin@mail.com",
+        "modified": "2024-04-23T16:26:00Z",
+        "tenantId": "connector-a",
+        "theme": [
+          "Data"
+        ],
+        "type": "Dataset",
+        "version": 0
+      },
+      "timestamp": "2026-11-02T08:12:18Z"
     }
   }
 }

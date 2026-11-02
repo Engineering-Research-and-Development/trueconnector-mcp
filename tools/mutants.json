@@ -83,5 +83,19 @@
   {"name": "_fields keeps None", "file": "src/tc_mcp/tools/catalog.py", "old": "return {k: v for k, v in fields.items() if v is not None}", "new": "return fields"},
   {"name": "description not wrapped", "file": "src/tc_mcp/tools/catalog.py", "old": "\"description\": description and lang(description)", "new": "\"description\": description"},
   {"name": "create_data_service sends endpointURL", "file": "src/tc_mcp/tools/catalog.py", "old": "body = _fields(title, description, keywords)\n", "new": "body = {**_fields(title, description, keywords), \"endpointURL\": None}\n"},
-  {"name": "update_data_service not registered as write", "file": "src/tc_mcp/tools/catalog.py", "old": "    @mcp.tool(annotations=WRITE)\n    async def update_data_service(", "new": "    @mcp.tool(annotations=DESTRUCTIVE)\n    async def update_data_service("}
+  {"name": "update_data_service not registered as write", "file": "src/tc_mcp/tools/catalog.py", "old": "    @mcp.tool(annotations=WRITE)\n    async def update_data_service(", "new": "    @mcp.tool(annotations=DESTRUCTIVE)\n    async def update_data_service("},
+
+  {"name": "dataset sent as JSON body", "file": "src/tc_mcp/tools/catalog.py", "old": "return await client.request(\"POST\", \"/api/v1/datasets\", files=files)", "new": "return await client.request(\"POST\", \"/api/v1/datasets\", json=json.loads(files[\"dataset\"][1]))"},
+  {"name": "distributions not resolved", "file": "src/tc_mcp/tools/catalog.py", "old": "\"distribution\": await _distributions(client, distribution_ids),", "new": "\"distribution\": [{\"@id\": i} for i in distribution_ids],"},
+  {"name": "all permissions in one offer", "file": "src/tc_mcp/tools/catalog.py", "old": "return [{\"permission\": [p.model_dump()]} for p in permissions]", "new": "return [{\"permission\": [p.model_dump() for p in permissions]}]"},
+  {"name": "url part dropped", "file": "src/tc_mcp/tools/catalog.py", "old": "        parts[\"url\"] = (None, external_url)\n", "new": "        pass\n"},
+  {"name": "authorization part dropped", "file": "src/tc_mcp/tools/catalog.py", "old": "        parts[\"authorization\"] = (None, external_authorization)\n", "new": "        pass\n"},
+  {"name": "no distribution minimum", "file": "src/tc_mcp/tools/catalog.py", "old": "DistributionIds = Annotated[list[str], Field(min_length=1)]", "new": "DistributionIds = list[str]"},
+  {"name": "no offer minimum", "file": "src/tc_mcp/tools/catalog.py", "old": "list[Permission], Field(min_length=1,", "new": "list[Permission], Field(min_length=0,"},
+  {"name": "update sends only given fields", "file": "src/tc_mcp/tools/catalog.py", "old": "dataset = {**await client.request(\"GET\", path), **_fields(title, description, keywords)}", "new": "dataset = _fields(title, description, keywords)"},
+  {"name": "update ignores distributions", "file": "src/tc_mcp/tools/catalog.py", "old": "        if distribution_ids:\n            dataset[\"distribution\"]", "new": "        if False:\n            dataset[\"distribution\"]"},
+  {"name": "update ignores offers", "file": "src/tc_mcp/tools/catalog.py", "old": "        if offers:\n            dataset[\"hasPolicy\"]", "new": "        if False:\n            dataset[\"hasPolicy\"]"},
+  {"name": "update drops the new url", "file": "src/tc_mcp/tools/catalog.py", "old": "files=_dataset_parts(dataset, external_url, external_authorization))", "new": "files=_dataset_parts(dataset, None, external_authorization))"},
+  {"name": "any URL scheme", "file": "src/tc_mcp/tools/catalog.py", "old": "pattern=r\"^https?://\\S+$\"", "new": "pattern=r\"^\\w+://\\S+$\""},
+  {"name": "empty host allowed", "file": "src/tc_mcp/tools/catalog.py", "old": "pattern=r\"^https?://\\S+$\"", "new": "pattern=r\"^https?://\\S*$\""}
 ]
