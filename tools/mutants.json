@@ -192,5 +192,20 @@
   {"name": "prompt lists the consumer side", "file": "src/tc_mcp/prompts.py", "old": "list_negotiations(role=\"provider\", state=S,", "new": "list_negotiations(state=S,"},
   {"name": "prompt names a missing tool", "file": "src/tc_mcp/prompts.py", "old": "   - agree: agree_negotiation(negotiation_id,", "new": "   - agree: agree_contract(negotiation_id,"},
   {"name": "incoming prompt not registered", "file": "src/tc_mcp/prompts.py", "old": "    @mcp.prompt()\n    def handle_incoming_negotiations(", "new": "    def handle_incoming_negotiations("},
-  {"name": "spring detail ignored", "file": "src/tc_mcp/client.py", "old": "(body.get(\"message\") or body.get(\"detail\"))", "new": "body.get(\"message\")"}
+  {"name": "spring detail ignored", "file": "src/tc_mcp/client.py", "old": "(body.get(\"message\") or body.get(\"detail\"))", "new": "body.get(\"message\")"},
+  {"name": "transfer list ignores a filter", "file": "src/tc_mcp/tools/transfer.py", "old": "dataset_id=dataset_id, format=format\n", "new": "dataset_id=dataset_id\n"},
+  {"name": "transfer state accepts any string", "file": "src/tc_mcp/tools/transfer.py", "old": "    state: TransferState | None = None,", "new": "    state: str | None = None,"},
+  {"name": "transfer format accepts any string", "file": "src/tc_mcp/tools/transfer.py", "old": "    format: Format | None = None,", "new": "    format: str | None = None,"},
+  {"name": "transfer list untyped (no output schema)", "file": "src/tc_mcp/tools/transfer.py", "old": "    connector: str | None = None,\n) -> Page:", "new": "    connector: str | None = None,\n) -> Any:"},
+  {"name": "find ignores the agreement", "file": "src/tc_mcp/tools/transfer.py", "old": "params = page_params(0, 100, agreement_id=agreement_id, role=role)", "new": "params = page_params(0, 100, role=role)"},
+  {"name": "find ignores role", "file": "src/tc_mcp/tools/transfer.py", "old": "params = page_params(0, 100, agreement_id=agreement_id, role=role)", "new": "params = page_params(0, 100, agreement_id=agreement_id)"},
+  {"name": "find takes the first of several", "file": "src/tc_mcp/tools/transfer.py", "old": "    if len(found) == 1:\n", "new": "    if len(found) >= 1:\n"},
+  {"name": "find returns nothing instead of an error", "file": "src/tc_mcp/tools/transfer.py", "old": "    if not found:\n        raise ToolError(", "new": "    if not found:\n        return None\n        raise ToolError("},
+  {"name": "request from any side", "file": "src/tc_mcp/tools/transfer.py", "old": "if record[\"role\"] != \"consumer\":", "new": "if False:"},
+  {"name": "request sends a dataAddress", "file": "src/tc_mcp/tools/transfer.py", "old": "body = {\"transferProcessId\": transfer_process_id, \"format\": format}", "new": "body = {\"transferProcessId\": transfer_process_id, \"format\": format, \"dataAddress\": {}}"},
+  {"name": "repeated request is an error", "file": "src/tc_mcp/tools/transfer.py", "old": "    except AlreadyInState:\n        record = await client.request(\"GET\", path)\n", "new": "    except AlreadyInState:\n        raise\n"},
+  {"name": "request format accepts any string", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer_process_id: str, format: Format, connector", "new": "transfer_process_id: str, format: str, connector"},
+  {"name": "transfer reads without state machine", "file": "src/tc_mcp/tools/transfer.py", "old": "read, annotations=READ_ONLY, description=f\"{inspect.cleandoc(read.__doc__ or '')}\\n\\n{STATE_MACHINE}\"", "new": "read, annotations=READ_ONLY"},
+  {"name": "request_transfer marked read-only", "file": "src/tc_mcp/tools/transfer.py", "old": "        request_transfer,\n        annotations=WRITE,", "new": "        request_transfer,\n        annotations=READ_ONLY,"},
+  {"name": "transfer tools not registered", "file": "src/tc_mcp/server.py", "old": "    transfer.register(mcp)\n", "new": ""}
 ]
