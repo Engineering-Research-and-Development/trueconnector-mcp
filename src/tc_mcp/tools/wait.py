@@ -1,44 +1,72 @@
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
 import anyio
 from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
 from tc_mcp.tools import READ_ONLY, registry, seg
 from tc_mcp.tools.negotiation import NegotiationState
+from tc_mcp.tools.transfer import TransferState
 
-FINAL = {"FINALIZED", "TERMINATED"}
+# kind: (path, the states it can be waited for, final states)
+KINDS = {
+    "negotiation": ("/api/v1/negotiations", set(get_args(NegotiationState)), {"FINALIZED", "TERMINATED"}),
+    "transfer": ("/api/v1/transfers", {*get_args(TransferState), "DOWNLOADED"}, {"COMPLETED", "TERMINATED"}),
+}
+FAILED_MOVE = (
+    "The data move ended without data, and TrueConnector reports no error for it. Usual causes: the dataset's "
+    "source URL is unreachable from the provider, or the storage endpoint is misconfigured; the connector logs "
+    "have the reason. move_transfer_data can be retried once the cause is fixed."
+)
 
 
 class Wait(BaseModel):
-    outcome: Literal["reached", "final", "timeout"] = Field(
-        description="reached: one of `states`; final: stopped at a final state not asked for; timeout: neither in time"
+    outcome: Literal["reached", "final", "failed", "timeout"] = Field(
+        description="reached: one of `states`; final: stopped at a final state not asked for; failed: a data move "
+        "ended without data (see hint); timeout: none of these in time"
     )
     state: str
     object: dict[str, Any]
+    hint: str | None = None
 
 
 async def wait_for_state(
     ctx: Context,
-    kind: Literal["negotiation"],
+    kind: Literal["negotiation", "transfer"],
     id: str,
-    states: Annotated[list[NegotiationState], Field(min_length=1)],
+    states: Annotated[list[NegotiationState | TransferState | Literal["DOWNLOADED"]], Field(min_length=1)],
     timeout_s: Annotated[float, Field(gt=0, le=120)] = 30,
     interval_s: Annotated[float, Field(ge=0.5, le=30)] = 2,
     connector: str | None = None,
 ) -> Wait:
-    """Poll a negotiation on this connector until it is in one of `states`, reaches a final state
-    (FINALIZED, TERMINATED), or `timeout_s` runs out. Reports progress while it waits; changes nothing."""
-    client = registry(ctx).get(connector)
-    path = f"/api/v1/negotiations/{seg(id)}"
+    """Poll a negotiation or transfer on this connector until it is in one of `states`, reaches a final state
+    (negotiation: FINALIZED, TERMINATED; transfer: COMPLETED, TERMINATED), or `timeout_s` runs out.
+
+    For a transfer, DOWNLOADED means its data has arrived. Wait on the side that moves the data (PULL: consumer,
+    PUSH: provider) to have a silently failed move reported as `failed`. Reports progress; changes nothing.
+    """
+    path, valid, final = KINDS[kind]
+    if wrong := [s for s in states if s not in valid]:
+        raise ToolError(f"{wrong} are not {kind} states; use {sorted(valid)}")
+    reg = registry(ctx)
+    client = reg.get(connector)
     deadline = anyio.current_time() + timeout_s
+    seen_running = False
     while True:
-        record = await client.request("GET", path)
+        record = await client.request("GET", f"{path}/{seg(id)}")
         state = record["state"]
-        if state in states:
+        if {state, *(["DOWNLOADED"] if record.get("downloaded") else [])} & set(states):
             return Wait(outcome="reached", state=state, object=record)
-        if state in FINAL:
+        if state in final:
             return Wait(outcome="final", state=state, object=record)
+        # The only trace of a failed move: STARTED, no data, nothing running. Only call it failed when a move is
+        # known to have run, never because one has not started yet.
+        if kind == "transfer" and state == "STARTED" and not record.get("downloaded"):
+            if record.get("downloadInProgress"):
+                seen_running = True
+            elif seen_running or (client.connector.name, record["@id"]) in reg.moves_started:
+                return Wait(outcome="failed", state=state, object=record, hint=FAILED_MOVE)
         remaining = deadline - anyio.current_time()
         if remaining <= 0:
             return Wait(outcome="timeout", state=state, object=record)

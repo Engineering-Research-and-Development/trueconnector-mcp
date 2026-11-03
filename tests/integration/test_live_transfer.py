@@ -1,4 +1,3 @@
-import anyio
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
@@ -89,12 +88,9 @@ async def test_provider_terminates_a_requested_transfer(call, manual_transfer):
 
 
 async def downloaded(call, tid, connector):
-    for _ in range(40):
-        transfer = await call("get_transfer", id=tid, connector=connector)
-        if transfer["downloaded"]:
-            return transfer
-        await anyio.sleep(0.5)
-    raise AssertionError(f"{tid} on {connector} not downloaded after 20 s: {transfer}")
+    waited = await call("wait_for_state", kind="transfer", id=tid, states=["DOWNLOADED"], connector=connector)
+    assert waited["outcome"] == "reached", waited
+    return waited["object"]
 
 
 @pytest.mark.parametrize(
@@ -121,3 +117,11 @@ async def test_move_data_on_the_right_side_and_get_its_url(call, mcp_client, man
         "accepted": False,
         "message": "the data is already downloaded: get_transfer_data_url gives its link",
     }
+
+
+async def test_automatic_pull_is_waited_until_the_data_has_arrived(call):
+    mine, _ = await requested_transfer(call, "HttpData-PULL")
+
+    transfer = await downloaded(call, mine, "a")
+
+    assert (transfer["state"], transfer["downloaded"]) == ("COMPLETED", True)
