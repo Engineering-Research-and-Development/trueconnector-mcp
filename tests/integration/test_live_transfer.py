@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
@@ -125,3 +127,11 @@ async def test_automatic_pull_is_waited_until_the_data_has_arrived(call):
     transfer = await downloaded(call, mine, "a")
 
     assert (transfer["state"], transfer["downloaded"]) == ("COMPLETED", True)
+
+
+async def test_transfer_resource_reads_the_record(call, mcp_client):
+    mine = (await call("list_transfers", state="COMPLETED", role="consumer", size=1, connector="a"))["items"][0]
+
+    read = await mcp_client.read_resource(f"trueconnector://a/transfers/{mine['@id']}")
+
+    assert json.loads(read.contents[0].text) == await call("get_transfer", id=mine["@id"], connector="a")

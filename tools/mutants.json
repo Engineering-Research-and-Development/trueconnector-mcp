@@ -95,7 +95,7 @@
   {"name": "dataset resource reads the wrong path", "file": "src/tc_mcp/resources.py", "old": "f\"/api/v1/datasets/{seg(id)}\"", "new": "f\"/api/v1/catalogs\""},
   {"name": "resources not registered", "file": "src/tc_mcp/server.py", "old": "    resources.register(mcp, settings)\n", "new": ""},
   {"name": "prompts not registered", "file": "src/tc_mcp/server.py", "old": "    prompts.register(mcp)\n", "new": ""},
-  {"name": "prompt ignores connector", "file": "src/tc_mcp/prompts.py", "old": "if connector else \"\"", "new": "if False else \"\""},
+  {"name": "prompt ignores connector", "file": "src/tc_mcp/prompts.py", "old": "if connector else \"\"\n        return f\"\"\"Publish", "new": "if False else \"\"\n        return f\"\"\"Publish"},
   {"name": "unconstrained permission allowed", "file": "src/tc_mcp/tools/__init__.py", "old": "constraint: list[Constraint] = Field(min_length=1)", "new": "constraint: list[Constraint] = []"},
   {"name": "publish: no rollback", "file": "src/tc_mcp/tools/datasets.py", "old": "for path in reversed(created):", "new": "for path in []:"},
   {"name": "publish: rollback in creation order", "file": "src/tc_mcp/tools/datasets.py", "old": "for path in reversed(created):", "new": "for path in created:"},
@@ -234,5 +234,18 @@
   {"name": "an unstarted move called failed", "file": "src/tc_mcp/tools/wait.py", "old": "            elif seen_running or (client.connector.name, record[\"@id\"]) in reg.moves_started:\n", "new": "            else:\n"},
   {"name": "moves of other connectors count", "file": "src/tc_mcp/tools/wait.py", "old": "(client.connector.name, record[\"@id\"]) in reg.moves_started", "new": "any(record[\"@id\"] == m[1] for m in reg.moves_started)"},
   {"name": "failed without a hint", "file": "src/tc_mcp/tools/wait.py", "old": "object=record, hint=FAILED_MOVE)", "new": "object=record)"},
-  {"name": "moves_started not recorded", "file": "src/tc_mcp/tools/transfer.py", "old": "    reg.moves_started.add((client.connector.name, record[\"@id\"]))\n", "new": ""}
+  {"name": "moves_started not recorded", "file": "src/tc_mcp/tools/transfer.py", "old": "    reg.moves_started.add((client.connector.name, record[\"@id\"]))\n", "new": ""},
+  {"name": "transfer resource reads the negotiation", "file": "src/tc_mcp/resources.py", "old": "return await _get(ctx, connector, f\"/api/v1/transfers/{seg(id)}\")", "new": "return await _get(ctx, connector, f\"/api/v1/negotiations/{seg(id)}\")"},
+  {"name": "consume_dataset PULL and PUSH swapped", "file": "src/tc_mcp/prompts.py", "old": "        if format == \"HttpData-PULL\":\n", "new": "        if format != \"HttpData-PULL\":\n"},
+  {"name": "consume_dataset defaults to PUSH", "file": "src/tc_mcp/prompts.py", "old": "format: Format = \"HttpData-PULL\", connector", "new": "format: Format = \"HttpData-PUSH\", connector"},
+  {"name": "consume_dataset accepts any format", "file": "src/tc_mcp/prompts.py", "old": "format: Format = \"HttpData-PULL\", connector", "new": "format: str = \"HttpData-PULL\", connector"},
+  {"name": "consume_dataset drops the consumer connector", "file": "src/tc_mcp/prompts.py", "old": "        on = f', connector=\"{connector}\"' if connector else \"\"\n        hint", "new": "        on = \"\"\n        hint"},
+  {"name": "consume_dataset ignores the dataset hint", "file": "src/tc_mcp/prompts.py", "old": "hint = f' matching \"{dataset_hint}\"' if dataset_hint else \"\"", "new": "hint = \"\""},
+  {"name": "consume_dataset chooses for the user", "file": "src/tc_mcp/prompts.py", "old": " Ask me which dataset and offer\n   to use; never choose for me.", "new": " Pick the first dataset and offer."},
+  {"name": "consume_dataset assumes automatic negotiation", "file": "src/tc_mcp/prompts.py", "old": "states=[\"OFFERED\", \"AGREED\", \"FINALIZED\"]", "new": "states=[\"FINALIZED\"]"},
+  {"name": "consume_dataset always moves the data", "file": "src/tc_mcp/prompts.py", "old": "states=[\"STARTED\", \"DOWNLOADED\"]{on}", "new": "states=[\"STARTED\"]{on}"},
+  {"name": "consume_dataset pushes without consent", "file": "src/tc_mcp/prompts.py", "old": "   (trueconnector://connectors), ask me before acting on its side, then:\n", "new": "   (trueconnector://connectors):\n"},
+  {"name": "incoming skips requested transfers", "file": "src/tc_mcp/prompts.py", "old": "list_transfers(role=\"provider\", state=\"REQUESTED\", connector=\"{connector}\")", "new": "list_negotiations(role=\"provider\", state=\"REQUESTED\", connector=\"{connector}\")"},
+  {"name": "incoming starts transfers without asking", "file": "src/tc_mcp/prompts.py", "old": "   Never start or terminate a transfer without my decision.\n", "new": ""},
+  {"name": "incoming forgets stalled pushes", "file": "src/tc_mcp/prompts.py", "old": "state=\"STARTED\", format=\"HttpData-PUSH\"", "new": "state=\"STARTED\""}
 ]

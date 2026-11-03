@@ -33,6 +33,7 @@ async def test_resources():
             ("GET", "/api/v1/datasets/urn:uuid:d"): "dataset",
             ("GET", "/api/v1/datasets/missing"): "error_400",
             ("GET", "/api/v1/negotiations/urn:uuid:n"): "envelope_data",
+            ("GET", "/api/v1/transfers/urn:uuid:t"): "dataset",
         }
     )
     async with mcp.Client(build_server(SETTINGS, httpx2.MockTransport(fake))) as client:
@@ -40,6 +41,7 @@ async def test_resources():
             "trueconnector://{connector}/catalog",
             "trueconnector://{connector}/datasets/{id}",
             "trueconnector://{connector}/negotiations/{id}",
+            "trueconnector://{connector}/transfers/{id}",
         ]
 
         listed = (await client.read_resource("trueconnector://connectors")).contents[0].text
@@ -63,6 +65,9 @@ async def test_resources():
 
         negotiation = await client.read_resource("trueconnector://c/negotiations/urn:uuid:n")
         assert json.loads(negotiation.contents[0].text) == FIXTURES["envelope_data"]["body"]["data"]
+
+        transfer = await client.read_resource("trueconnector://c/transfers/urn:uuid:t")
+        assert json.loads(transfer.contents[0].text) == FIXTURES["dataset"]["body"]["data"]
 
         # A connector error reaches the client with its message, not as an anonymous crash.
         with pytest.raises(mcp.MCPError, match="Contract negotiation with id does-not-exist not found"):
@@ -102,6 +107,51 @@ async def test_handle_incoming_negotiations_prompt_leaves_decisions_to_the_user(
     assert 'role="provider"' in text and 'connector="b"' in text
     assert "Never agree, counteroffer or terminate without my decision" in text
     assert text.index("For each VERIFIED one") > text.index("Never agree")
+    assert 'list_transfers(role="provider", state="REQUESTED", connector="b")' in text
+    assert "Never start or terminate a transfer without my decision" in text
+    assert 'state="STARTED", format="HttpData-PUSH"' in text
+
+
+async def consume(args):
+    async with mcp.Client(build_server(SETTINGS)) as client:
+        prompt = {p.name: p for p in (await client.list_prompts()).prompts}["consume_dataset"]
+        return prompt, (await client.get_prompt("consume_dataset", args)).messages[0].content.text
+
+
+async def test_consume_dataset_prompt_pull():
+    prompt, text = await consume({"provider": "b", "dataset_hint": "sensors", "connector": "a"})
+
+    assert {a.name: a.required for a in prompt.arguments} == {
+        "provider": True,
+        "dataset_hint": False,
+        "format": False,
+        "connector": False,
+    }
+    assert "HttpData-PULL" in text and 'matching "sensors"' in text
+    assert "never choose for me" in text
+    # Mode-agnostic: automatic mode is recognized by the states reached, never assumed.
+    assert 'states=["OFFERED", "AGREED", "FINALIZED"], connector="a"' in text
+    assert 'states=["STARTED", "DOWNLOADED"], connector="a"' in text
+    assert 'move_transfer_data(transfer_process_id=<T>, connector="a")' in text
+    assert 'connector="b"' not in text  # PULL never acts on the provider's side
+    steps = ["request_contract(", "request_transfer(", "move_transfer_data(", "get_transfer_data_url("]
+    assert [text.index(s) for s in steps] == sorted(text.index(s) for s in steps)
+
+
+async def test_consume_dataset_prompt_push_moves_on_the_provider_only_with_consent():
+    _, text = await consume({"provider": "b", "format": "HttpData-PUSH", "connector": "a"})
+
+    assert "ask me before acting on its side" in text
+    assert 'role="provider", connector="b"' in text
+    assert 'move_transfer_data(transfer_process_id=<P>, connector="b")' in text
+    assert "move_transfer_data(transfer_process_id=<T>" not in text
+    assert text.index("ask me before acting") < text.index("move_transfer_data(")
+
+
+async def test_consume_dataset_prompt_rejects_an_unknown_format():
+    async with mcp.Client(build_server(SETTINGS)) as client:
+        with pytest.raises(mcp.MCPError):
+            await client.get_prompt("consume_dataset", {"provider": "b", "format": "FTP"})
 
 
 @pytest.mark.parametrize(
@@ -109,6 +159,8 @@ async def test_handle_incoming_negotiations_prompt_leaves_decisions_to_the_user(
     [
         ("publish_dataset", {"title": "t", "description": "d", "external_url": "https://x"}),
         ("handle_incoming_negotiations", {"connector": "b"}),
+        ("consume_dataset", {"provider": "b"}),
+        ("consume_dataset", {"provider": "b", "format": "HttpData-PUSH"}),
     ],
 )
 async def test_prompts_only_name_tools_that_exist(name, args):

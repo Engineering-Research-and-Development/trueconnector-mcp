@@ -42,3 +42,8 @@ def register(mcp: MCPServer, settings: Settings) -> None:
     async def negotiation(connector: str, id: str, ctx: Context) -> Any:
         """One negotiation by this connector's `@id`: state, role, current offer and, once agreed, the agreement."""
         return await _get(ctx, connector, f"/api/v1/negotiations/{seg(id)}")
+
+    @mcp.resource("trueconnector://{connector}/transfers/{id}", mime_type="application/json")
+    async def transfer(connector: str, id: str, ctx: Context) -> Any:
+        """One transfer process by this connector's `@id`: state, role, format, agreementId and `downloaded`."""
+        return await _get(ctx, connector, f"/api/v1/transfers/{seg(id)}")
