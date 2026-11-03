@@ -1,5 +1,6 @@
 import json
 
+import httpx2
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
@@ -95,12 +96,27 @@ async def downloaded(call, tid, connector):
     return waited["object"]
 
 
+async def fetched(call, tid):
+    """The consumer's copy of the data, fetched from the host through the presigned link."""
+    url = (await call("get_transfer_data_url", transfer_process_id=tid, connector="a"))["url"]
+    async with httpx2.AsyncClient() as http:  # the link names host.docker.internal, which Docker Desktop resolves
+        response = await http.get(url)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+SEEDED_DATA = [{"employee": {"name": "John Doe", "age": 30, "city": "New York"}}]  # the stack's seeded dataset
+
+
 @pytest.mark.parametrize(
     ("fmt", "mover", "other"), [("HttpData-PULL", "a", "b"), ("HttpData-PUSH", "b", "a")], ids=["pull", "push"]
 )
 async def test_move_data_on_the_right_side_and_get_its_url(call, mcp_client, manual_transfer, fmt, mover, other):
     mine, theirs = await requested_transfer(call, fmt)
     ids = {"a": mine, "b": theirs}
+    early = await mcp_client.call_tool("move_transfer_data", {"transfer_process_id": ids[mover], "connector": mover})
+    assert early.is_error
+    assert "is REQUESTED: data moves only while STARTED" in early.content[0].text
     await call("start_transfer", transfer_process_id=theirs, connector="b")
 
     wrong = await mcp_client.call_tool("move_transfer_data", {"transfer_process_id": ids[other], "connector": other})
@@ -112,8 +128,7 @@ async def test_move_data_on_the_right_side_and_get_its_url(call, mcp_client, man
 
     transfer = await downloaded(call, mine, "a")
     assert transfer["state"] == "COMPLETED"  # a finished move completes the transfer, even in manual mode
-    url = (await call("get_transfer_data_url", transfer_process_id=mine, connector="a"))["url"]
-    assert url.startswith("http") and "X-Amz-Signature" in url
+    assert await fetched(call, mine) == SEEDED_DATA
     again = await call("move_transfer_data", transfer_process_id=ids[mover], connector=mover)
     assert again == {
         "accepted": False,
@@ -127,6 +142,7 @@ async def test_automatic_pull_is_waited_until_the_data_has_arrived(call):
     transfer = await downloaded(call, mine, "a")
 
     assert (transfer["state"], transfer["downloaded"]) == ("COMPLETED", True)
+    assert await fetched(call, mine) == SEEDED_DATA
 
 
 async def test_transfer_resource_reads_the_record(call, mcp_client):
