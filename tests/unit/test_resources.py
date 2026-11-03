@@ -1,4 +1,5 @@
 import json
+import re
 
 import httpx2
 import mcp
@@ -31,12 +32,14 @@ async def test_resources():
             ("GET", "/api/v1/catalogs"): "envelope_data",
             ("GET", "/api/v1/datasets/urn:uuid:d"): "dataset",
             ("GET", "/api/v1/datasets/missing"): "error_400",
+            ("GET", "/api/v1/negotiations/urn:uuid:n"): "envelope_data",
         }
     )
     async with mcp.Client(build_server(SETTINGS, httpx2.MockTransport(fake))) as client:
         assert [t.uri_template for t in (await client.list_resource_templates()).resource_templates] == [
             "trueconnector://{connector}/catalog",
             "trueconnector://{connector}/datasets/{id}",
+            "trueconnector://{connector}/negotiations/{id}",
         ]
 
         listed = (await client.read_resource("trueconnector://connectors")).contents[0].text
@@ -58,6 +61,9 @@ async def test_resources():
         dataset = await client.read_resource("trueconnector://c/datasets/urn:uuid:d")
         assert json.loads(dataset.contents[0].text) == FIXTURES["dataset"]["body"]["data"]
 
+        negotiation = await client.read_resource("trueconnector://c/negotiations/urn:uuid:n")
+        assert json.loads(negotiation.contents[0].text) == FIXTURES["envelope_data"]["body"]["data"]
+
         # A connector error reaches the client with its message, not as an anonymous crash.
         with pytest.raises(mcp.MCPError, match="Contract negotiation with id does-not-exist not found"):
             await client.read_resource("trueconnector://c/datasets/missing")
@@ -67,7 +73,7 @@ async def test_resources():
 
 async def test_publish_dataset_prompt():
     async with mcp.Client(build_server(SETTINGS)) as client:
-        [prompt] = (await client.list_prompts()).prompts
+        prompt = {p.name: p for p in (await client.list_prompts()).prompts}["publish_dataset"]
         args = {"title": "Sensors", "description": "hourly readings", "external_url": "https://data.example/s"}
         result = await client.get_prompt("publish_dataset", {**args, "connector": "b"})
 
@@ -83,3 +89,32 @@ async def test_publish_dataset_prompt():
     assert text.index("Ask me which usage policy") < text.index("Call publish_dataset(")
     assert 'external_url="https://data.example/s"' in text and 'connector="b"' in text
     assert "create_data_service" not in text
+
+
+async def test_handle_incoming_negotiations_prompt_leaves_decisions_to_the_user():
+    async with mcp.Client(build_server(SETTINGS)) as client:
+        prompt = {p.name: p for p in (await client.list_prompts()).prompts}["handle_incoming_negotiations"]
+        result = await client.get_prompt("handle_incoming_negotiations", {"connector": "b"})
+
+    assert {a.name: a.required for a in prompt.arguments} == {"connector": True}
+    text = result.messages[0].content.text
+    assert "For each S in REQUESTED, ACCEPTED, VERIFIED: call list_negotiations(" in text
+    assert 'role="provider"' in text and 'connector="b"' in text
+    assert "Never agree, counteroffer or terminate without my decision" in text
+    assert text.index("For each VERIFIED one") > text.index("Never agree")
+
+
+@pytest.mark.parametrize(
+    ("name", "args"),
+    [
+        ("publish_dataset", {"title": "t", "description": "d", "external_url": "https://x"}),
+        ("handle_incoming_negotiations", {"connector": "b"}),
+    ],
+)
+async def test_prompts_only_name_tools_that_exist(name, args):
+    async with mcp.Client(build_server(SETTINGS)) as client:
+        tools = {t.name for t in (await client.list_tools()).tools}
+        text = (await client.get_prompt(name, args)).messages[0].content.text
+
+    called = set(re.findall(r"\b([a-z_]+)\(", text))
+    assert called and called <= tools, called - tools

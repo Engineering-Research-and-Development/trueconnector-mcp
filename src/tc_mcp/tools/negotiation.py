@@ -143,30 +143,6 @@ async def request_contract(
     return await client.request("POST", "/api/v1/negotiations/request", json={"Forward-To": forward_to, "offer": offer})
 
 
-async def offer_contract(
-    ctx: Context,
-    peer: str,
-    dataset_id: str,
-    offer_id: str | None = None,
-    assignee: str | None = None,
-    connector: str | None = None,
-) -> Any:
-    """Provider: start a negotiation by offering one of this connector's datasets to a consumer (→ OFFERED).
-
-    `peer` is the consumer: a configured connector name or its DSP protocol URL. `offer_id` is one of the dataset's
-    offers in this connector's catalog; it may be omitted when the dataset has exactly one. `assignee` (the
-    consumer's identity in the agreement) defaults to `{peer protocol URL}/consumer`, the value TrueConnector itself
-    uses when a consumer requests. For other terms, publish them as another offer of the dataset first.
-    """
-    reg = registry(ctx)
-    client, forward_to = reg.get(connector), reg.forward_to(peer)
-    catalog = await client.request("GET", "/api/v1/catalogs")
-    offer = pick_offer(catalog, dataset_id, offer_id, client.connector.name)
-    # Without an assignee the provider's stored offer has none, and a later manual agree fails with a 500.
-    offer["assignee"] = assignee or f"{forward_to.rstrip('/')}/consumer"
-    return await client.request("POST", "/api/v1/negotiations/offer", json={"Forward-To": forward_to, "offer": offer})
-
-
 async def send_counteroffer(
     ctx: Context,
     negotiation_id: str,
@@ -254,7 +230,7 @@ def register(mcp: MCPServer) -> None:
         )
     for check in (validate_offer, enforce_agreement):
         mcp.add_tool(check, annotations=READ_ONLY)
-    for write in (request_contract, offer_contract, send_counteroffer):
+    for write in (request_contract, send_counteroffer):
         mcp.add_tool(
             write, annotations=WRITE, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
         )

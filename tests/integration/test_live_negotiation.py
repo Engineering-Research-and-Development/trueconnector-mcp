@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
@@ -60,21 +62,6 @@ async def test_request_contract_starts_a_negotiation_with_the_provider(call):
     assert theirs["role"] == "provider"
 
 
-async def test_offer_contract_stores_the_assignee_on_both_sides(call):
-    dataset_id = (await call("get_own_catalog", connector="b"))["dataset"][0]["@id"]
-
-    mine = await call("offer_contract", peer="a", dataset_id=dataset_id, connector="b")
-
-    assignee = "http://connector-a:8080/connector-a/consumer"
-    assert (mine["role"], mine["state"], mine["offer"]["assignee"]) == ("provider", "OFFERED", assignee)
-    theirs = await call("find_counterpart_negotiation", id=mine["@id"], peer_connector="a", connector="b")
-    assert (theirs["role"], theirs["offer"]["assignee"]) == ("consumer", assignee)
-
-    # Only the consumer can end it: TrueConnector stores the provider's record without a callbackAddress.
-    ended = await call("terminate_negotiation", negotiation_id=theirs["@id"], connector="a")
-    assert (ended["already_done"], ended["state"]) == (False, "TERMINATED")
-
-
 def count(n):
     return {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": str(n)}]}
 
@@ -124,6 +111,9 @@ async def test_manual_negotiation_from_counteroffer_to_a_usable_agreement(call, 
     for action, record, connector, state in steps:
         done = await call(f"{action}_negotiation", negotiation_id=record["@id"], connector=connector)
         assert (done["already_done"], done["state"]) == (False, state), action
+        if state == "AGREED":  # the agreement exists, but may not be used before FINALIZED
+            early = await call("enforce_agreement", agreement_id=done["negotiation"]["agreement"]["@id"], connector="b")
+            assert early["allowed"] is False, early
 
     mine = await call("get_negotiation", id=mine["@id"], connector="a")
     assert mine["state"] == "FINALIZED"
@@ -132,3 +122,21 @@ async def test_manual_negotiation_from_counteroffer_to_a_usable_agreement(call, 
     assert enforced["allowed"] is True
     repeat = await call("finalize_negotiation", negotiation_id=theirs["@id"], connector="b")
     assert (repeat["already_done"], repeat["state"]) == (True, "FINALIZED")
+
+
+async def test_wait_for_state_follows_an_automatic_negotiation_to_finalized(call):
+    dataset = (await call("browse_remote_catalog", peer="b", connector="a"))["datasets"][0]
+    mine = await call("request_contract", peer="b", dataset_id=dataset["id"], connector="a")
+
+    waited = await call("wait_for_state", kind="negotiation", id=mine["@id"], states=["FINALIZED"], connector="a")
+
+    assert (waited["outcome"], waited["state"]) == ("reached", "FINALIZED")
+    assert waited["object"]["agreement"]["@id"]
+
+
+async def test_negotiation_resource_reads_the_record(call, mcp_client):
+    mine = (await call("list_negotiations", state="FINALIZED", role="consumer", size=1, connector="a"))["items"][0]
+
+    read = await mcp_client.read_resource(f"trueconnector://a/negotiations/{mine['@id']}")
+
+    assert json.loads(read.contents[0].text)["@id"] == mine["@id"]

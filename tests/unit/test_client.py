@@ -360,3 +360,17 @@ def test_a_relayed_peer_error_includes_its_reason():
         "consumer did not process Terminate message correct: "
         "State transition aborted, TERMINATED state can not transition to TERMINATED"
     )
+
+
+def test_a_spring_problem_detail_is_reported_with_its_detail():
+    body = {  # live: a body-less POST to a JSON endpoint
+        "type": "about:blank",
+        "title": "Unsupported Media Type",
+        "status": 415,
+        "detail": "Content-Type 'null' is not supported.",
+        "instance": "/api/v1/offers/validate",
+    }
+
+    assert (
+        str(_error(415, body, "a POST /x")) == "a POST /x: unexpected HTTP 415: Content-Type 'null' is not supported."
+    )

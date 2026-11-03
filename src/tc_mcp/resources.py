@@ -37,3 +37,8 @@ def register(mcp: MCPServer, settings: Settings) -> None:
     async def dataset(connector: str, id: str, ctx: Context) -> Any:
         """One of a connector's datasets."""
         return await _get(ctx, connector, f"/api/v1/datasets/{seg(id)}")
+
+    @mcp.resource("trueconnector://{connector}/negotiations/{id}", mime_type="application/json")
+    async def negotiation(connector: str, id: str, ctx: Context) -> Any:
+        """One negotiation by this connector's `@id`: state, role, current offer and, once agreed, the agreement."""
+        return await _get(ctx, connector, f"/api/v1/negotiations/{seg(id)}")

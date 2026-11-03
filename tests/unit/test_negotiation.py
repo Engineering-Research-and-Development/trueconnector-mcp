@@ -119,7 +119,6 @@ async def test_negotiation_tools_describe_the_state_machine_and_list_has_an_outp
         "get_negotiation",
         "find_counterpart_negotiation",
         "request_contract",
-        "offer_contract",
         "send_counteroffer",
     ):
         assert "OFFERED -> REQUESTED | ACCEPTED | TERMINATED" in tools[name].description, name
@@ -194,7 +193,6 @@ CATALOG = FIXTURES["proxy_catalog"]["body"]["data"]
 DATASET = CATALOG["dataset"][0]
 CATALOG_OFFER = DATASET["hasPolicy"][0]
 SECOND_OFFER = {**CATALOG_OFFER, "@id": "urn:uuid:second-offer"}
-A_PROTOCOL = "http://connector-a:8080/connector-a"
 
 
 def catalog_with(*offers):
@@ -244,43 +242,6 @@ async def test_request_contract_errors(offers, args, error):
     assert result.is_error
     assert error in result.content[0].text
     assert not fake.calls("POST", "/api/v1/negotiations/request")
-
-
-@pytest.mark.parametrize(
-    ("peer", "assignee", "expected"),
-    [
-        (A_PROTOCOL, None, f"{A_PROTOCOL}/consumer"),
-        (f"{A_PROTOCOL}/", None, f"{A_PROTOCOL}/consumer"),
-        (A_PROTOCOL, "urn:connector:a", "urn:connector:a"),
-    ],
-)
-async def test_offer_contract_offers_own_catalog_offer_with_an_assignee(peer, assignee, expected):
-    fake = FakeConnector(
-        {
-            ("GET", "/api/v1/catalogs"): catalog_with(CATALOG_OFFER),
-            ("POST", "/api/v1/negotiations/offer"): one(MINE),
-        }
-    )
-
-    result = await call(fake, "offer_contract", peer=peer, dataset_id=DATASET["@id"], assignee=assignee, connector="b")
-
-    assert not result.is_error, result.content
-    offered = fake.calls("POST", "/api/v1/negotiations/offer")[0]
-    assert offered.url.host == "tc-b"
-    assert json.loads(offered.content) == {
-        "Forward-To": peer,
-        "offer": CATALOG_OFFER | {"target": DATASET["@id"], "assigner": CATALOG["participantId"], "assignee": expected},
-    }
-
-
-async def test_offer_contract_rejects_an_offer_not_in_own_catalog():
-    fake = FakeConnector({("GET", "/api/v1/catalogs"): catalog_with(CATALOG_OFFER)})
-
-    result = await call(fake, "offer_contract", peer=A_PROTOCOL, dataset_id="urn:uuid:other", connector="b")
-
-    assert result.is_error
-    assert "dataset urn:uuid:other is not in the catalog of b" in result.content[0].text
-    assert not fake.calls("POST", "/api/v1/negotiations/offer")
 
 
 COUNT_3 = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "3"}]}
