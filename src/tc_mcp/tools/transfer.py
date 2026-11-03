@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from tc_mcp.client import AlreadyInState
 from tc_mcp.tools import (
@@ -110,6 +110,55 @@ async def request_transfer(
         return TransferStep(already_done=True, state=record["state"], transfer=record)
 
 
+class Move(BaseModel):
+    accepted: bool = Field(description="A data move was started now; false when it is already done or running")
+    message: str
+
+
+class DataUrl(BaseModel):
+    url: str
+
+
+async def move_transfer_data(ctx: Context, transfer_process_id: str, connector: str | None = None) -> Move:
+    """Start moving the data of a STARTED transfer, in the background (watch `downloaded` on the transfer).
+
+    PULL: call it on the consumer, which fetches the data. PUSH: call it on the provider, which uploads it to the
+    consumer's storage. Once the data has arrived the transfer is COMPLETED on both sides.
+    """
+    reg = registry(ctx)
+    client = reg.get(connector)
+    path = f"/api/v1/transfers/{seg(transfer_process_id)}"
+    record = await client.request("GET", path)
+    if record.get("format") not in ("HttpData-PULL", "HttpData-PUSH"):
+        raise ToolError(f"transfer {transfer_process_id} has no format yet: the consumer must request_transfer first")
+    side = "consumer" if record["format"] == "HttpData-PULL" else "provider"
+    # The wrong side is not refused by TrueConnector: PUSH on the consumer is a 500 "Decryption failed", and PULL on
+    # the provider is accepted and copies the data into the provider's own storage.
+    if record["role"] != side:
+        raise ToolError(
+            f"{record['format']} data is moved by the {side}, but {transfer_process_id} is the {record['role']} "
+            f"record on connector '{client.connector.name}': call it on the {side}'s connector with its transfer @id"
+        )
+    if record.get("downloaded"):
+        return Move(accepted=False, message="the data is already downloaded: get_transfer_data_url gives its link")
+    if record["state"] != "STARTED":
+        raise ToolError(f"transfer {transfer_process_id} is {record['state']}: data moves only while STARTED")
+    if record.get("downloadInProgress"):
+        return Move(accepted=False, message="a data move is already running for this transfer")
+    message = await client.request("GET", f"{path}/download")
+    reg.moves_started.add((client.connector.name, record["@id"]))
+    return Move(accepted=True, message=str(message))
+
+
+async def get_transfer_data_url(ctx: Context, transfer_process_id: str, connector: str | None = None) -> DataUrl:
+    """A time-limited download link to the transferred data, once the transfer is COMPLETED.
+
+    Anyone holding the link can download the data until it expires: share it only with whoever should have it.
+    """
+    path = f"/api/v1/transfers/{seg(transfer_process_id)}/view"
+    return DataUrl(url=await registry(ctx).get(connector).request("GET", path))
+
+
 # TrueConnector checks the side itself and says so (e.g. "consumer can not transit from REQUESTED to STARTED").
 TRANSITIONS = {
     "start": "Provider: start a REQUESTED transfer (→ STARTED). Either side: resume a SUSPENDED one.",
@@ -134,14 +183,13 @@ def register_transition(mcp: MCPServer, action: str, description: str) -> None:
 
 
 def register(mcp: MCPServer) -> None:
-    for read in (list_transfers, get_transfer, find_transfer_for_agreement):
+    for read in (list_transfers, get_transfer, find_transfer_for_agreement, get_transfer_data_url):
         mcp.add_tool(
             read, annotations=READ_ONLY, description=f"{inspect.cleandoc(read.__doc__ or '')}\n\n{STATE_MACHINE}"
         )
-    mcp.add_tool(
-        request_transfer,
-        annotations=WRITE,
-        description=f"{inspect.cleandoc(request_transfer.__doc__ or '')}\n\n{STATE_MACHINE}",
-    )
+    for write in (request_transfer, move_transfer_data):
+        mcp.add_tool(
+            write, annotations=WRITE, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
+        )
     for action, description in TRANSITIONS.items():
         register_transition(mcp, action, description)

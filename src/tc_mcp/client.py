@@ -103,6 +103,7 @@ class Registry:
 
     def __init__(self, settings: Settings, transport: httpx2.AsyncBaseTransport | None = None):
         self._clients = {c.name: TCClient(c, settings.timeout_s, transport) for c in settings.connectors}
+        self.moves_started: set[tuple[str, str]] = set()
 
     def get(self, name: str | None = None) -> TCClient:
         if name is None:

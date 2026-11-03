@@ -225,3 +225,88 @@ async def test_transfer_transitions_describe_the_state_machine_and_have_an_outpu
         assert "STARTED -> SUSPENDED | COMPLETED | TERMINATED" in tool.description, action
         assert "already_done" in tool.description, action
         assert set(tool.output_schema["properties"]) == {"already_done", "state", "transfer"}, action
+
+
+def started(fmt, role, **fields):
+    return {**INITIALIZED, "@id": TID, "role": role, "state": "STARTED", "format": fmt, **fields}
+
+
+ACCEPTED = {"success": True, "message": "Request accepted", "data": f"Download started for transfer process {TID}"}
+
+
+@pytest.mark.parametrize(
+    ("record", "error"),
+    [
+        (INITIALIZED, "has no format yet: the consumer must request_transfer first"),
+        (started("HttpData-PULL", "consumer", state="REQUESTED"), "is REQUESTED: data moves only while STARTED"),
+        (started("HttpData-PUSH", "provider", state="SUSPENDED"), "is SUSPENDED: data moves only while STARTED"),
+    ],
+)
+async def test_move_transfer_data_guards(record, error):
+    fake = FakeConnector({("GET", f"/api/v1/transfers/{TID}"): one(record)})
+
+    result = await call(fake, "move_transfer_data", transfer_process_id=TID, connector="a")
+
+    assert result.is_error
+    assert error in result.content[0].text
+    assert [r.url.path for r in fake.requests] == [f"/api/v1/transfers/{TID}"]
+
+
+@pytest.mark.parametrize(("fmt", "side"), [("HttpData-PULL", "consumer"), ("HttpData-PUSH", "provider")])
+async def test_move_transfer_data_on_the_right_side(fmt, side):
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/transfers/{TID}"): one(started(fmt, side)),
+            ("GET", f"/api/v1/transfers/{TID}/download"): lambda _: httpx2.Response(202, json=ACCEPTED),
+        }
+    )
+
+    result = await call(fake, "move_transfer_data", transfer_process_id=TID, connector="a")
+
+    assert result.structured_content == {"accepted": True, "message": ACCEPTED["data"]}
+    assert fake.calls("GET", f"/api/v1/transfers/{TID}/download")
+
+
+@pytest.mark.parametrize(
+    ("fmt", "wrong", "right"), [("HttpData-PULL", "provider", "consumer"), ("HttpData-PUSH", "consumer", "provider")]
+)
+async def test_move_transfer_data_on_the_wrong_side_is_refused(fmt, wrong, right):
+    fake = FakeConnector({("GET", f"/api/v1/transfers/{TID}"): one(started(fmt, wrong))})
+
+    result = await call(fake, "move_transfer_data", transfer_process_id=TID, connector="a")
+
+    assert result.is_error
+    assert f"{fmt} data is moved by the {right}, but {TID} is the {wrong} record" in result.content[0].text
+    assert not fake.calls("GET", f"/api/v1/transfers/{TID}/download")
+
+
+@pytest.mark.parametrize(
+    ("record", "message"),
+    [
+        (started("HttpData-PULL", "consumer", downloaded=True), "already downloaded: get_transfer_data_url"),
+        (started("HttpData-PULL", "consumer", state="COMPLETED", downloaded=True), "already downloaded"),
+        (started("HttpData-PULL", "consumer", downloadInProgress=True), "already running"),
+    ],
+)
+async def test_move_transfer_data_already_downloaded(record, message):
+    fake = FakeConnector({("GET", f"/api/v1/transfers/{TID}"): one(record)})
+
+    result = await call(fake, "move_transfer_data", transfer_process_id=TID, connector="a")
+
+    assert not result.is_error, result.content
+    assert result.structured_content["accepted"] is False
+    assert message in result.structured_content["message"]
+    assert not fake.calls("GET", f"/api/v1/transfers/{TID}/download")
+
+
+async def test_get_transfer_data_url_wraps_the_raw_text():
+    url = "http://host.docker.internal:9000/dsp-true-connector-a/x?X-Amz-Signature=abc"
+
+    def raw(_):  # live: the bare URL, unquoted, despite the JSON content type
+        return httpx2.Response(200, headers={"Content-Type": "application/json"}, content=url.encode())
+
+    fake = FakeConnector({("GET", f"/api/v1/transfers/{TID}/view"): raw})
+
+    result = await call(fake, "get_transfer_data_url", transfer_process_id=TID, connector="a")
+
+    assert result.structured_content == {"url": url}

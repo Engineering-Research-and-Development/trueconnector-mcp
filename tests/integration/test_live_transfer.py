@@ -1,3 +1,4 @@
+import anyio
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
@@ -85,3 +86,38 @@ async def test_provider_terminates_a_requested_transfer(call, manual_transfer):
     assert (await call("get_transfer", id=mine, connector="a"))["state"] == "TERMINATED"
     again = await call("terminate_transfer", transfer_process_id=theirs, connector="b")
     assert again["already_done"] is True
+
+
+async def downloaded(call, tid, connector):
+    for _ in range(40):
+        transfer = await call("get_transfer", id=tid, connector=connector)
+        if transfer["downloaded"]:
+            return transfer
+        await anyio.sleep(0.5)
+    raise AssertionError(f"{tid} on {connector} not downloaded after 20 s: {transfer}")
+
+
+@pytest.mark.parametrize(
+    ("fmt", "mover", "other"), [("HttpData-PULL", "a", "b"), ("HttpData-PUSH", "b", "a")], ids=["pull", "push"]
+)
+async def test_move_data_on_the_right_side_and_get_its_url(call, mcp_client, manual_transfer, fmt, mover, other):
+    mine, theirs = await requested_transfer(call, fmt)
+    ids = {"a": mine, "b": theirs}
+    await call("start_transfer", transfer_process_id=theirs, connector="b")
+
+    wrong = await mcp_client.call_tool("move_transfer_data", {"transfer_process_id": ids[other], "connector": other})
+    assert wrong.is_error
+    assert f"{fmt} data is moved by the" in wrong.content[0].text
+
+    moved = await call("move_transfer_data", transfer_process_id=ids[mover], connector=mover)
+    assert moved["accepted"] is True, moved
+
+    transfer = await downloaded(call, mine, "a")
+    assert transfer["state"] == "COMPLETED"  # a finished move completes the transfer, even in manual mode
+    url = (await call("get_transfer_data_url", transfer_process_id=mine, connector="a"))["url"]
+    assert url.startswith("http") and "X-Amz-Signature" in url
+    again = await call("move_transfer_data", transfer_process_id=ids[mover], connector=mover)
+    assert again == {
+        "accepted": False,
+        "message": "the data is already downloaded: get_transfer_data_url gives its link",
+    }

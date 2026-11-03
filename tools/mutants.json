@@ -206,7 +206,7 @@
   {"name": "repeated request is an error", "file": "src/tc_mcp/tools/transfer.py", "old": "    except AlreadyInState:\n        record = await client.request(\"GET\", path)\n", "new": "    except AlreadyInState:\n        raise\n"},
   {"name": "request format accepts any string", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer_process_id: str, format: Format, connector", "new": "transfer_process_id: str, format: str, connector"},
   {"name": "transfer reads without state machine", "file": "src/tc_mcp/tools/transfer.py", "old": "read, annotations=READ_ONLY, description=f\"{inspect.cleandoc(read.__doc__ or '')}\\n\\n{STATE_MACHINE}\"", "new": "read, annotations=READ_ONLY"},
-  {"name": "request_transfer marked read-only", "file": "src/tc_mcp/tools/transfer.py", "old": "        request_transfer,\n        annotations=WRITE,", "new": "        request_transfer,\n        annotations=READ_ONLY,"},
+  {"name": "transfer writes marked read-only", "file": "src/tc_mcp/tools/transfer.py", "old": "            write, annotations=WRITE, description=f\"{inspect.cleandoc(write.__doc__ or '')}\\n\\n{STATE_MACHINE}\"\n", "new": "            write, annotations=READ_ONLY, description=f\"{inspect.cleandoc(write.__doc__ or '')}\\n\\n{STATE_MACHINE}\"\n"},
   {"name": "transfer tools not registered", "file": "src/tc_mcp/server.py", "old": "    transfer.register(mcp)\n", "new": ""},
   {"name": "transfer transition hits the wrong path", "file": "src/tc_mcp/tools/transfer.py", "old": "await transition(client, f\"/api/v1/transfers/{seg(transfer_process_id)}\", action)", "new": "await transition(client, f\"/api/v1/negotiations/{seg(transfer_process_id)}\", action)"},
   {"name": "transfer repeat reported as new", "file": "src/tc_mcp/tools/transfer.py", "old": "return TransferStep(already_done=already_done, state=record[\"state\"], transfer=record)", "new": "return TransferStep(already_done=False, state=record[\"state\"], transfer=record)"},
@@ -214,5 +214,15 @@
   {"name": "transfer transitions without state machine", "file": "src/tc_mcp/tools/transfer.py", "old": "        description=f\"{description} A repeated call returns already_done.\\n\\n{STATE_MACHINE}\",\n        annotations=DESTRUCTIVE", "new": "        description=f\"{description} A repeated call returns already_done.\",\n        annotations=DESTRUCTIVE"},
   {"name": "transfer transitions untyped", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer_process_id: str, connector: str | None = None) -> TransferStep:", "new": "transfer_process_id: str, connector: str | None = None) -> Any:"},
   {"name": "suspend not registered", "file": "src/tc_mcp/tools/transfer.py", "old": "    \"suspend\": \"Either side:", "new": "    \"suspend_\": \"Either side:"},
-  {"name": "transfer transitions not registered", "file": "src/tc_mcp/tools/transfer.py", "old": "        register_transition(mcp, action, description)\n", "new": "        pass\n"}
+  {"name": "transfer transitions not registered", "file": "src/tc_mcp/tools/transfer.py", "old": "        register_transition(mcp, action, description)\n", "new": "        pass\n"},
+  {"name": "move without a format", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record.get(\"format\") not in (\"HttpData-PULL\", \"HttpData-PUSH\"):\n        raise", "new": "    if False:\n        raise"},
+  {"name": "move sides swapped", "file": "src/tc_mcp/tools/transfer.py", "old": "side = \"consumer\" if record[\"format\"] == \"HttpData-PULL\" else \"provider\"", "new": "side = \"provider\" if record[\"format\"] == \"HttpData-PULL\" else \"consumer\""},
+  {"name": "move from either side", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record[\"role\"] != side:\n", "new": "    if False:\n"},
+  {"name": "move ignores downloaded", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record.get(\"downloaded\"):\n", "new": "    if False:\n"},
+  {"name": "move outside STARTED", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record[\"state\"] != \"STARTED\":\n", "new": "    if False:\n"},
+  {"name": "move ignores a running move", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record.get(\"downloadInProgress\"):\n", "new": "    if False:\n"},
+  {"name": "move calls the wrong endpoint", "file": "src/tc_mcp/tools/transfer.py", "old": "message = await client.request(\"GET\", f\"{path}/download\")", "new": "message = await client.request(\"GET\", f\"{path}/view\")"},
+  {"name": "data url from the wrong endpoint", "file": "src/tc_mcp/tools/transfer.py", "old": "path = f\"/api/v1/transfers/{seg(transfer_process_id)}/view\"", "new": "path = f\"/api/v1/transfers/{seg(transfer_process_id)}\""},
+  {"name": "move not registered", "file": "src/tc_mcp/tools/transfer.py", "old": "for write in (request_transfer, move_transfer_data):", "new": "for write in (request_transfer,):"},
+  {"name": "data url not registered", "file": "src/tc_mcp/tools/transfer.py", "old": "find_transfer_for_agreement, get_transfer_data_url):", "new": "find_transfer_for_agreement):"}
 ]
