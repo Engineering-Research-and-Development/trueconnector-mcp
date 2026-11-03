@@ -11,6 +11,7 @@ from pydantic import SecretStr
 from tc_mcp.config import Connector, Settings
 
 _SAME_STATE = re.compile(r"(\w+) state can not transition to \1\b")
+_NOT_FOUND = re.compile(r"\bnot found\.?$")
 _EXPIRY_SKEW_S = 30
 
 
@@ -41,6 +42,8 @@ class TCClient:
 
     async def request(self, method: str, path: str, *, auth: bool = True, **kwargs: Any) -> Any:
         where = f"{self.connector.name} {method} {path}"
+        if method in ("POST", "PUT") and not kwargs.keys() & {"json", "data", "files", "content"}:
+            kwargs["json"] = {}  # body-less JSON endpoints answer 415 without a Content-Type
         token = await self._token() if auth else None
         response = await self._send(method, path, token, where, **kwargs)
         if response.status_code == 401 and auth and self.connector.password is not None:
@@ -130,7 +133,12 @@ class Registry:
 
 
 def _error(status: int, body: Any, where: str) -> ToolError:
-    message = body.get("message") if isinstance(body, dict) else body
+    message = (body.get("message") or body.get("detail")) if isinstance(body, dict) else body
+    data = body.get("data") if isinstance(body, dict) else None
+    if isinstance(data, dict) and data.get("reason"):  # a peer's DSP error message, relayed
+        message = f"{message}: {'; '.join(data['reason'])}"
+    if status == 404 or (status == 400 and _NOT_FOUND.search(str(message))):
+        return ToolError(f"{where}: not found ({message})")
     if status == 400:
         if m := _SAME_STATE.search(str(message)):
             return AlreadyInState(m.group(1), str(message), where)
@@ -139,8 +147,6 @@ def _error(status: int, body: Any, where: str) -> ToolError:
         return ToolError(f"{where}: authentication failed, check this connector's credentials")
     if status == 403:
         return ToolError(f"{where}: forbidden, the configured account's role may not call this endpoint")
-    if status == 404:
-        return ToolError(f"{where}: not found ({message})")
     if status >= 500:
         return ToolError(
             f"{where}: connector internal error ({message}). "

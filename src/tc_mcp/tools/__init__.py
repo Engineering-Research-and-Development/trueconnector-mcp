@@ -1,4 +1,4 @@
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 from urllib.parse import quote
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -10,6 +10,30 @@ from tc_mcp.client import Registry
 READ_ONLY = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
+
+Role = Literal["consumer", "provider"]
+PageNumber = Annotated[int, Field(ge=0, description="0-based page number")]
+PageSize = Annotated[int, Field(ge=1, le=100)]
+
+
+class PageInfo(BaseModel):
+    size: int
+    totalElements: int
+    totalPages: int
+    number: int
+
+
+class Page(BaseModel):
+    """One page of a paged list; filters are exact matches on the record's fields."""
+
+    items: list[dict[str, Any]]
+    page: PageInfo
+
+
+def page_params(page: int, size: int, **filters: str | None) -> dict[str, Any]:
+    """Query parameters for a paged list: snake_case filters become the API's camelCase field names."""
+    camel = {"".join(w.capitalize() if i else w for i, w in enumerate(k.split("_"))): v for k, v in filters.items()}
+    return {"page": page, "size": size, **{k: v for k, v in camel.items() if v is not None}}
 
 
 class Constraint(BaseModel):

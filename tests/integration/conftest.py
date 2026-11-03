@@ -1,7 +1,8 @@
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx2
 import mcp
@@ -25,6 +26,35 @@ def require_stack() -> None:
             httpx2.get(f"{connector.base_url}/.well-known/dspace-version", timeout=3).raise_for_status()
         except httpx2.HTTPError:
             pytest.skip(f"TrueConnector stack is down ({connector.name} at {connector.base_url})")
+
+
+SUPER_ADMIN = {"email": "superadmin@mail.com", "password": "password"}  # the local stack's public demo account
+AUTOMATION = ("automaticNegotiation", "automaticTransfer")
+
+
+@pytest.fixture
+def manual_negotiation() -> Iterator[None]:
+    """Both tenants with automatic negotiation off; the previous flags are restored afterwards.
+
+    Tenant flags need a SUPER_ADMIN, which the MCP server never has, so this calls the API directly.
+    The PUT resets any flag it is not given, so both are always sent.
+    """
+    tenants = []
+    for connector in stack_settings().connectors:
+        http = httpx2.Client(base_url=connector.base_url, timeout=30)
+        token = http.post("/api/v1/auth/login", json=SUPER_ADMIN).raise_for_status().json()["access_token"]
+        http.headers["Authorization"] = f"Bearer {token}"
+        path = f"/api/v1/tenants/{urlparse(connector.protocol_url).path.strip('/')}"
+        flags = {k: http.get(path).raise_for_status().json()["data"][k] for k in AUTOMATION}
+        tenants.append((http, path, flags))
+    try:
+        for http, path, flags in tenants:
+            http.put(path, json=flags | {"automaticNegotiation": False}).raise_for_status()
+        yield
+    finally:
+        for http, path, flags in tenants:
+            http.put(path, json=flags).raise_for_status()
+            http.close()
 
 
 @pytest.fixture

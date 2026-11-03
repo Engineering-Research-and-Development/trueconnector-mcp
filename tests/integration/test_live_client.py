@@ -27,11 +27,14 @@ async def test_forced_refresh_rotates_the_refresh_token(client):
     assert reuse.status_code == 401
 
 
-async def test_not_found_is_rejected_with_the_connector_message(client):
-    with pytest.raises(Rejected, match="not found") as e:
+async def test_a_400_not_found_is_a_not_found_error_not_a_rejection(client):
+    with pytest.raises(ToolError) as e:
         await client.request("GET", "/api/v1/negotiations/does-not-exist")
 
-    assert e.value.reason == "Contract negotiation with id does-not-exist not found"
+    assert str(e.value) == (
+        "a GET /api/v1/negotiations/does-not-exist: not found (Contract negotiation with id does-not-exist not found)"
+    )
+    assert not isinstance(e.value, Rejected)
 
 
 async def test_admin_forbidden_route_maps_to_403_message(client):

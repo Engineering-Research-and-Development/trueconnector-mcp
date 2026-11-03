@@ -41,12 +41,16 @@ for i in range(workers):
 
 
 def tests_fail(copy: Path, tests: list[str]) -> bool:
-    r = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", *tests],
-        cwd=copy,
-        env={**os.environ, "PYTHONPATH": str(copy / "src")},
-        capture_output=True,
-    )
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", *tests],
+            cwd=copy,
+            env={**os.environ, "PYTHONPATH": str(copy / "src")},
+            capture_output=True,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return True  # a mutant that makes the suite hang is detected, not survived
     return r.returncode != 0
 
 

@@ -55,7 +55,7 @@ async def test_bare_bodies_pass_through(name):
 @pytest.mark.parametrize(
     ("name", "expected"),
     [
-        ("error_400", "rejected: Contract negotiation with id does-not-exist not found"),
+        ("error_400", "not found (Contract negotiation with id does-not-exist not found)"),
         ("error_401", "authentication failed"),
         ("error_401_refresh_reuse", "authentication failed"),
         ("error_403", "forbidden"),
@@ -68,21 +68,62 @@ async def test_error_shapes_map_to_tool_errors(name, expected):
     with pytest.raises(ToolError) as err:
         await client.request("GET", "/x")
 
-    assert str(err.value).startswith("a GET /x: " if name != "error_400" else "a GET /x rejected: ")
+    assert str(err.value).startswith("a GET /x: ")
     assert expected in str(err.value)
-    assert isinstance(err.value, Rejected) == (name == "error_400")
-    assert not isinstance(err.value, AlreadyInState)
+    assert not isinstance(err.value, Rejected)
 
 
 def test_unexpected_status_is_reported_with_its_code():
     assert "unexpected HTTP 409" in str(_error(409, {"message": "nope"}, "a GET /x"))
 
 
-def test_not_found_is_reported_as_such():
-    # Catalog and artifact lookups answer 404 (negotiations answer 400, see error_400).
-    assert str(_error(404, {"message": "Catalog with id x not found"}, "a GET /x")) == (
-        "a GET /x: not found (Catalog with id x not found)"
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [
+        (404, "Catalog with id x not found"),
+        (400, "Contract negotiation with id x not found"),
+        (400, "Agreement with Id x not found."),
+    ],
+)
+def test_not_found_is_reported_as_such_not_as_a_rejection(status, message):
+    # Catalogs answer 404; negotiations, transfers and agreements answer 400 (all live).
+    err = _error(status, {"message": message}, "a GET /x")
+
+    assert str(err) == f"a GET /x: not found ({message})"
+    assert not isinstance(err, Rejected)
+
+
+def test_a_400_that_is_not_about_a_missing_object_is_a_rejection():
+    err = _error(400, {"success": False, "message": "Offer not valid"}, "b POST /x")
+
+    assert isinstance(err, Rejected)
+    assert err.reason == "Offer not valid"
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+async def test_body_less_post_and_put_send_an_empty_json_object(method):
+    # Live: the connector answers 415 "Content-Type 'null' is not supported" without one.
+    fake = FakeConnector({(method, "/x"): "envelope_no_data"})
+
+    await make_client(fake).request(method, "/x")
+
+    sent = fake.requests[0]
+    assert (sent.headers["Content-Type"], sent.content) == ("application/json", b"{}")
+
+
+async def test_get_delete_and_explicit_bodies_are_sent_as_given():
+    fake = FakeConnector(
+        {("GET", "/x"): "envelope_no_data", ("DELETE", "/x"): "envelope_no_data", ("POST", "/x"): "envelope_no_data"}
     )
+    client = make_client(fake)
+
+    await client.request("GET", "/x")
+    await client.request("DELETE", "/x")
+    await client.request("POST", "/x", data={"k": "v"})
+
+    get, delete, form = fake.requests
+    assert (get.content, delete.content) == (b"", b"")
+    assert form.content == b"k=v"
 
 
 async def test_same_state_transition_is_already_in_state():
@@ -302,3 +343,34 @@ async def test_logout_failure_does_not_break_shutdown():
     await client.aclose()
 
     assert len(fake.calls(*LOGOUT)) == 1
+
+
+def test_a_relayed_peer_error_includes_its_reason():
+    body = {  # live: connector A terminating a negotiation the peer already terminated
+        "success": False,
+        "message": "consumer did not process Terminate message correct",
+        "data": {"reason": ["State transition aborted, TERMINATED state can not transition to TERMINATED"]},
+    }
+
+    err = _error(400, body, "a PUT /x")
+
+    assert isinstance(err, AlreadyInState)
+    assert err.state == "TERMINATED"
+    assert err.reason == (
+        "consumer did not process Terminate message correct: "
+        "State transition aborted, TERMINATED state can not transition to TERMINATED"
+    )
+
+
+def test_a_spring_problem_detail_is_reported_with_its_detail():
+    body = {  # live: a body-less POST to a JSON endpoint
+        "type": "about:blank",
+        "title": "Unsupported Media Type",
+        "status": 415,
+        "detail": "Content-Type 'null' is not supported.",
+        "instance": "/api/v1/offers/validate",
+    }
+
+    assert (
+        str(_error(415, body, "a POST /x")) == "a POST /x: unexpected HTTP 415: Content-Type 'null' is not supported."
+    )

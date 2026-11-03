@@ -175,7 +175,7 @@ async def test_publish_dataset_rollback_survives_a_failing_delete():
 
     assert result.is_error
     text = result.content[0].text
-    assert "rejected" in text and "deleted the 1 object(s)" in text  # the original error, not the cleanup's
+    assert "not found" in text and "deleted the 1 object(s)" in text  # the original error, not the cleanup's
     assert fake.calls("DELETE", SERVICE_PATH)
 
 
