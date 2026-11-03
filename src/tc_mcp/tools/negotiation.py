@@ -5,8 +5,9 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from tc_mcp.client import Rejected
+from tc_mcp.client import AlreadyInState, Rejected
 from tc_mcp.tools import (
+    DESTRUCTIVE,
     READ_ONLY,
     WRITE,
     Page,
@@ -199,6 +200,53 @@ async def send_counteroffer(
     return await client.request("PUT", f"/api/v1/negotiations/{seg(negotiation_id)}/{action}", json=offer)
 
 
+class Transition(BaseModel):
+    already_done: bool = Field(description="The negotiation was already in this state; nothing changed")
+    state: NegotiationState
+    negotiation: dict[str, Any]
+
+
+# action: (the side that performs it, or None for either; description)
+TRANSITIONS: dict[str, tuple[Role | None, str]] = {
+    "accept": ("consumer", "Consumer: accept the provider's offer (OFFERED → ACCEPTED)."),
+    "agree": ("provider", "Provider: agree (REQUESTED or ACCEPTED → AGREED); creates the agreement."),
+    "verify": ("consumer", "Consumer: verify the provider's agreement (AGREED → VERIFIED)."),
+    "finalize": (
+        "provider",
+        "Provider: finalize (VERIFIED → FINALIZED); the agreement can then be used for transfers.",
+    ),
+    "terminate": (None, "Either side: end the negotiation for both sides (→ TERMINATED). Irreversible."),
+}
+
+
+def register_transition(mcp: MCPServer, action: str, role: Role | None, description: str) -> None:
+    async def transition(ctx: Context, negotiation_id: str, connector: str | None = None) -> Transition:
+        client = registry(ctx).get(connector)
+        path = f"/api/v1/negotiations/{seg(negotiation_id)}"
+        record = await client.request("GET", path)
+        # A wrong-side call fails misleadingly (agree on a consumer record is a 500 about a missing assignee).
+        if role is not None and record["role"] != role:
+            raise ToolError(
+                f"{action} is a {role} action, but {negotiation_id} is the {record['role']} record on connector "
+                f"'{client.connector.name}': call it on the {role}'s connector with find_counterpart_negotiation's @id"
+            )
+        already_done, result = False, None
+        try:
+            result = await client.request("PUT", f"{path}/{action}")
+        except AlreadyInState:
+            already_done = True
+        if not (isinstance(result, dict) and "state" in result):
+            result = await client.request("GET", path)
+        return Transition(already_done=already_done, state=result["state"], negotiation=result)
+
+    mcp.add_tool(
+        transition,
+        name=f"{action}_negotiation",
+        description=f"{description} A repeated call returns already_done.\n\n{STATE_MACHINE}",
+        annotations=DESTRUCTIVE if action == "terminate" else WRITE,
+    )
+
+
 def register(mcp: MCPServer) -> None:
     for read in (list_negotiations, get_negotiation, find_counterpart_negotiation):
         mcp.add_tool(
@@ -210,3 +258,5 @@ def register(mcp: MCPServer) -> None:
         mcp.add_tool(
             write, annotations=WRITE, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
         )
+    for action, (role, description) in TRANSITIONS.items():
+        register_transition(mcp, action, role, description)

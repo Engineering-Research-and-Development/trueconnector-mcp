@@ -381,3 +381,141 @@ async def test_counteroffer_puts_every_permission_into_the_one_offer():
     await call(fake, "send_counteroffer", negotiation_id=NEG_ID, permissions=[COUNT_3, count_5], connector="b")
 
     assert countered(fake, "offer")["permission"] == [COUNT_3, count_5]
+
+
+ALREADY = FIXTURES["error_400_already"]["body"]  # live: "... FINALIZED state can not transition to FINALIZED"
+# Live, connector A terminating twice: the peer's DSP error is relayed, the real reason only in data.reason.
+TERMINATED_TWICE = {
+    "success": False,
+    "message": "consumer did not process Terminate message correct",
+    "data": {
+        "@type": "ContractNegotiationErrorMessage",
+        "code": "Bad Request",
+        "reason": ["State transition aborted, TERMINATED state can not transition to TERMINATED"],
+    },
+}
+
+
+def states(*records):
+    """A GET route answering with each record in turn (before the transition, then the re-read)."""
+    answers = iter(records)
+    return lambda _: httpx2.Response(200, json={"success": True, "data": next(answers)})
+
+
+def at(state, role="provider"):
+    return {**MINE, "state": state, "role": role}
+
+
+@pytest.mark.parametrize(
+    ("action", "role", "error_body", "state"),
+    [
+        ("finalize", "provider", ALREADY, "FINALIZED"),
+        ("terminate", "consumer", TERMINATED_TWICE, "TERMINATED"),
+    ],
+)
+async def test_repeated_transition_is_already_done(action, role, error_body, state):
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): states(at(state, role), at(state, role)),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/{action}"): lambda _: httpx2.Response(400, json=error_body),
+        }
+    )
+
+    result = await call(fake, f"{action}_negotiation", negotiation_id=NEG_ID, connector="a")
+
+    assert not result.is_error, result.content
+    assert result.structured_content == {"already_done": True, "state": state, "negotiation": at(state, role)}
+
+
+@pytest.mark.parametrize(
+    ("action", "role", "before", "after"),
+    [("verify", "consumer", "AGREED", "VERIFIED"), ("finalize", "provider", "VERIFIED", "FINALIZED")],
+)
+async def test_verify_rereads_the_negotiation(action, role, before, after):
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): states(at(before, role), at(after, role)),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/{action}"): "envelope_no_data",
+        }
+    )
+
+    result = await call(fake, f"{action}_negotiation", negotiation_id=NEG_ID, connector="a")
+
+    assert result.structured_content == {"already_done": False, "state": after, "negotiation": at(after, role)}
+    assert [r.method for r in fake.requests] == ["GET", "PUT", "GET"]
+
+
+async def test_agree_returns_the_record_it_gets_back_without_rereading():
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): one(at("REQUESTED")),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/agree"): one(at("AGREED")),
+        }
+    )
+
+    result = await call(fake, "agree_negotiation", negotiation_id=NEG_ID, connector="a")
+
+    assert result.structured_content == {"already_done": False, "state": "AGREED", "negotiation": at("AGREED")}
+    assert [r.method for r in fake.requests] == ["GET", "PUT"]
+
+
+@pytest.mark.parametrize(
+    ("action", "side", "wrong"),
+    [
+        ("accept", "consumer", "provider"),
+        ("agree", "provider", "consumer"),
+        ("verify", "consumer", "provider"),
+        ("finalize", "provider", "consumer"),
+    ],
+)
+async def test_transition_on_the_wrong_side_is_refused_locally(action, side, wrong):
+    fake = FakeConnector({("GET", f"/api/v1/negotiations/{NEG_ID}"): one(at("REQUESTED", wrong))})
+
+    result = await call(fake, f"{action}_negotiation", negotiation_id=NEG_ID, connector="a")
+
+    assert result.is_error
+    assert f"{action} is a {side} action, but {NEG_ID} is the {wrong} record on connector 'a'" in result.content[0].text
+    assert [r.method for r in fake.requests] == ["GET"]
+
+
+@pytest.mark.parametrize("role", ["consumer", "provider"])
+async def test_either_side_can_terminate(role):
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): one(at("REQUESTED", role)),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/terminate"): one(at("TERMINATED", role)),
+        }
+    )
+
+    result = await call(fake, "terminate_negotiation", negotiation_id=NEG_ID, connector="a")
+
+    assert result.structured_content["state"] == "TERMINATED"
+
+
+async def test_an_illegal_transition_stays_an_error():
+    illegal = {
+        "success": False,
+        "message": "State transition aborted, FINALIZED state can not transition to TERMINATED",
+    }
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/negotiations/{NEG_ID}"): one(at("FINALIZED")),
+            ("PUT", f"/api/v1/negotiations/{NEG_ID}/terminate"): lambda _: httpx2.Response(400, json=illegal),
+        }
+    )
+
+    result = await call(fake, "terminate_negotiation", negotiation_id=NEG_ID, connector="a")
+
+    assert result.is_error
+    assert "FINALIZED state can not transition to TERMINATED" in result.content[0].text
+
+
+async def test_transitions_describe_the_state_machine_and_have_an_output_schema():
+    async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+
+    for action in ("accept", "agree", "verify", "finalize", "terminate"):
+        tool = tools[f"{action}_negotiation"]
+        assert "OFFERED -> REQUESTED | ACCEPTED | TERMINATED" in tool.description, action
+        assert "already_done" in tool.description, action
+        assert set(tool.output_schema["properties"]) == {"already_done", "state", "negotiation"}, action

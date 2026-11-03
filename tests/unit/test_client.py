@@ -343,3 +343,20 @@ async def test_logout_failure_does_not_break_shutdown():
     await client.aclose()
 
     assert len(fake.calls(*LOGOUT)) == 1
+
+
+def test_a_relayed_peer_error_includes_its_reason():
+    body = {  # live: connector A terminating a negotiation the peer already terminated
+        "success": False,
+        "message": "consumer did not process Terminate message correct",
+        "data": {"reason": ["State transition aborted, TERMINATED state can not transition to TERMINATED"]},
+    }
+
+    err = _error(400, body, "a PUT /x")
+
+    assert isinstance(err, AlreadyInState)
+    assert err.state == "TERMINATED"
+    assert err.reason == (
+        "consumer did not process Terminate message correct: "
+        "State transition aborted, TERMINATED state can not transition to TERMINATED"
+    )

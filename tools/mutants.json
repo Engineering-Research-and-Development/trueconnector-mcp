@@ -160,5 +160,21 @@
   {"name": "empty permissions allowed", "file": "src/tc_mcp/tools/negotiation.py", "old": "Field(min_length=1, description=\"All go into the one counteroffer\")", "new": "Field(description=\"All go into the one counteroffer\")"},
   {"name": "counteroffer endpoint ignores role", "file": "src/tc_mcp/tools/negotiation.py", "old": "action = \"offer\" if provider else \"request\"", "new": "action = \"offer\""},
   {"name": "counteroffer roles swapped", "file": "src/tc_mcp/tools/negotiation.py", "old": "provider = negotiation[\"role\"] == \"provider\"", "new": "provider = negotiation[\"role\"] == \"consumer\""},
-  {"name": "counteroffer not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "for write in (request_contract, offer_contract, send_counteroffer):", "new": "for write in (request_contract, offer_contract):"}
+  {"name": "counteroffer not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "for write in (request_contract, offer_contract, send_counteroffer):", "new": "for write in (request_contract, offer_contract):"},
+  {"name": "relayed peer reason dropped", "file": "src/tc_mcp/client.py", "old": "    if isinstance(data, dict) and data.get(\"reason\"):", "new": "    if False:"},
+  {"name": "wrong side not refused", "file": "src/tc_mcp/tools/negotiation.py", "old": "if role is not None and record[\"role\"] != role:", "new": "if False:"},
+  {"name": "terminate restricted to one side", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"terminate\": (None, \"Either side:", "new": "\"terminate\": (\"provider\", \"Either side:"},
+  {"name": "accept is a provider action", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"accept\": (\"consumer\",", "new": "\"accept\": (\"provider\","},
+  {"name": "agree is a consumer action", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"agree\": (\"provider\",", "new": "\"agree\": (\"consumer\","},
+  {"name": "verify is a provider action", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"verify\": (\"consumer\",", "new": "\"verify\": (\"provider\","},
+  {"name": "finalize is a consumer action", "file": "src/tc_mcp/tools/negotiation.py", "old": "    \"finalize\": (\n        \"provider\",", "new": "    \"finalize\": (\n        \"consumer\","},
+  {"name": "repeat is an error", "file": "src/tc_mcp/tools/negotiation.py", "old": "        except AlreadyInState:\n            already_done = True\n", "new": "        except AlreadyInState:\n            raise\n"},
+  {"name": "any rejection is already_done", "file": "src/tc_mcp/tools/negotiation.py", "old": "        except AlreadyInState:\n", "new": "        except Rejected:\n"},
+  {"name": "never rereads", "file": "src/tc_mcp/tools/negotiation.py", "old": "if not (isinstance(result, dict) and \"state\" in result):", "new": "if result is None:"},
+  {"name": "always rereads", "file": "src/tc_mcp/tools/negotiation.py", "old": "if not (isinstance(result, dict) and \"state\" in result):", "new": "if True:"},
+  {"name": "transition endpoint wrong", "file": "src/tc_mcp/tools/negotiation.py", "old": "result = await client.request(\"PUT\", f\"{path}/{action}\")", "new": "result = await client.request(\"PUT\", path)"},
+  {"name": "terminate not destructive", "file": "src/tc_mcp/tools/negotiation.py", "old": "annotations=DESTRUCTIVE if action == \"terminate\" else WRITE,", "new": "annotations=WRITE,"},
+  {"name": "transition descriptions without state machine", "file": "src/tc_mcp/tools/negotiation.py", "old": "A repeated call returns already_done.\\n\\n{STATE_MACHINE}\"", "new": "A repeated call returns already_done.\""},
+  {"name": "transitions untyped (no output schema)", "file": "src/tc_mcp/tools/negotiation.py", "old": "connector: str | None = None) -> Transition:", "new": "connector: str | None = None) -> Any:"},
+  {"name": "transitions not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "        register_transition(mcp, action, role, description)\n", "new": "        pass\n"}
 ]

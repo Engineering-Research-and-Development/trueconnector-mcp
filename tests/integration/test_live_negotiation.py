@@ -70,6 +70,10 @@ async def test_offer_contract_stores_the_assignee_on_both_sides(call):
     theirs = await call("find_counterpart_negotiation", id=mine["@id"], peer_connector="a", connector="b")
     assert (theirs["role"], theirs["offer"]["assignee"]) == ("consumer", assignee)
 
+    # Only the consumer can end it: TrueConnector stores the provider's record without a callbackAddress.
+    ended = await call("terminate_negotiation", negotiation_id=theirs["@id"], connector="a")
+    assert (ended["already_done"], ended["state"]) == (False, "TERMINATED")
+
 
 def count(n):
     return {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": str(n)}]}
@@ -93,3 +97,38 @@ async def test_counteroffers_both_ways_keep_the_assignee(call, manual_negotiatio
     assert theirs["state"] == "REQUESTED"
     assert theirs["offer"]["permission"][0]["constraint"][0]["rightOperand"] == "4"
     assert theirs["offer"]["assignee"] == "http://connector-a:8080/connector-a/consumer"  # agree will need it
+
+    ended = await call("terminate_negotiation", negotiation_id=mine["@id"], connector="a")
+    assert ended["state"] == "TERMINATED"
+    assert (await call("get_negotiation", id=theirs["@id"], connector="b"))["state"] == "TERMINATED"
+    again = await call("terminate_negotiation", negotiation_id=mine["@id"], connector="a")
+    assert (again["already_done"], again["state"]) == (True, "TERMINATED")
+
+
+async def test_manual_negotiation_from_counteroffer_to_a_usable_agreement(call, mcp_client, manual_negotiation):
+    dataset = (await call("browse_remote_catalog", peer="b", connector="a"))["datasets"][0]
+    mine = await call("request_contract", peer="b", dataset_id=dataset["id"], connector="a")
+    theirs = await call("find_counterpart_negotiation", id=mine["@id"], peer_connector="b", connector="a")
+    await call("send_counteroffer", negotiation_id=theirs["@id"], permissions=[count(3)], connector="b")
+
+    wrong_side = await mcp_client.call_tool("agree_negotiation", {"negotiation_id": mine["@id"], "connector": "a"})
+    assert wrong_side.is_error
+    assert "agree is a provider action" in wrong_side.content[0].text
+
+    steps = [
+        ("accept", mine, "a", "ACCEPTED"),
+        ("agree", theirs, "b", "AGREED"),
+        ("verify", mine, "a", "VERIFIED"),
+        ("finalize", theirs, "b", "FINALIZED"),
+    ]
+    for action, record, connector, state in steps:
+        done = await call(f"{action}_negotiation", negotiation_id=record["@id"], connector=connector)
+        assert (done["already_done"], done["state"]) == (False, state), action
+
+    mine = await call("get_negotiation", id=mine["@id"], connector="a")
+    assert mine["state"] == "FINALIZED"
+    assert mine["agreement"]["permission"][0]["constraint"][0]["rightOperand"] == "3"
+    enforced = await call("enforce_agreement", agreement_id=mine["agreement"]["@id"], connector="a")
+    assert enforced["allowed"] is True
+    repeat = await call("finalize_negotiation", negotiation_id=theirs["@id"], connector="b")
+    assert (repeat["already_done"], repeat["state"]) == (True, "FINALIZED")
