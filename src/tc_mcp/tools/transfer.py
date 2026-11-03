@@ -6,7 +6,19 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
 
 from tc_mcp.client import AlreadyInState
-from tc_mcp.tools import READ_ONLY, WRITE, Page, PageNumber, PageSize, Role, page_params, registry, seg
+from tc_mcp.tools import (
+    DESTRUCTIVE,
+    READ_ONLY,
+    WRITE,
+    Page,
+    PageNumber,
+    PageSize,
+    Role,
+    page_params,
+    registry,
+    seg,
+    transition,
+)
 from tc_mcp.tools.services import Format
 
 TransferState = Literal["INITIALIZED", "REQUESTED", "STARTED", "SUSPENDED", "COMPLETED", "TERMINATED"]
@@ -98,6 +110,29 @@ async def request_transfer(
         return TransferStep(already_done=True, state=record["state"], transfer=record)
 
 
+# TrueConnector checks the side itself and says so (e.g. "consumer can not transit from REQUESTED to STARTED").
+TRANSITIONS = {
+    "start": "Provider: start a REQUESTED transfer (→ STARTED). Either side: resume a SUSPENDED one.",
+    "complete": "Either side: mark a STARTED transfer as done (→ COMPLETED).",
+    "suspend": "Either side: pause a STARTED transfer (→ SUSPENDED); start_transfer resumes it.",
+    "terminate": "Either side: end a REQUESTED, STARTED or SUSPENDED transfer (→ TERMINATED). Irreversible.",
+}
+
+
+def register_transition(mcp: MCPServer, action: str, description: str) -> None:
+    async def run(ctx: Context, transfer_process_id: str, connector: str | None = None) -> TransferStep:
+        client = registry(ctx).get(connector)
+        already_done, record = await transition(client, f"/api/v1/transfers/{seg(transfer_process_id)}", action)
+        return TransferStep(already_done=already_done, state=record["state"], transfer=record)
+
+    mcp.add_tool(
+        run,
+        name=f"{action}_transfer",
+        description=f"{description} A repeated call returns already_done.\n\n{STATE_MACHINE}",
+        annotations=DESTRUCTIVE if action == "terminate" else WRITE,
+    )
+
+
 def register(mcp: MCPServer) -> None:
     for read in (list_transfers, get_transfer, find_transfer_for_agreement):
         mcp.add_tool(
@@ -108,3 +143,5 @@ def register(mcp: MCPServer) -> None:
         annotations=WRITE,
         description=f"{inspect.cleandoc(request_transfer.__doc__ or '')}\n\n{STATE_MACHINE}",
     )
+    for action, description in TRANSITIONS.items():
+        register_transition(mcp, action, description)

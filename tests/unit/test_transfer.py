@@ -169,3 +169,59 @@ async def test_transfer_tools_describe_the_state_machine():
         assert "STARTED -> SUSPENDED | COMPLETED | TERMINATED" in tools[name].description, name
     assert set(tools["request_transfer"].output_schema["properties"]) == {"already_done", "state", "transfer"}
     assert set(tools["list_transfers"].output_schema["properties"]) == {"items", "page"}
+
+
+ACTIONS = [("start", "STARTED"), ("complete", "COMPLETED"), ("suspend", "SUSPENDED"), ("terminate", "TERMINATED")]
+
+
+@pytest.mark.parametrize(("action", "state"), ACTIONS)
+async def test_lifecycle_transition_returns_the_record_it_gets_back(action, state):
+    after = {**INITIALIZED, "state": state}
+    fake = FakeConnector({("PUT", f"/api/v1/transfers/{TID}/{action}"): one(after)})
+
+    result = await call(fake, f"{action}_transfer", transfer_process_id=TID, connector="a")
+
+    assert result.structured_content == {"already_done": False, "state": state, "transfer": after}
+    [sent] = fake.requests
+    assert sent.content == b"{}"  # the endpoints answer 415 without a JSON body
+
+
+@pytest.mark.parametrize(("action", "state"), ACTIONS)
+async def test_repeated_transfer_transition_is_already_done(action, state):
+    already = {"success": False, "message": f"State transition aborted, {state} state can not transition to {state}"}
+    now = {**INITIALIZED, "state": state}
+    fake = FakeConnector(
+        {
+            ("PUT", f"/api/v1/transfers/{TID}/{action}"): lambda _: httpx2.Response(400, json=already),
+            ("GET", f"/api/v1/transfers/{TID}"): one(now),
+        }
+    )
+
+    result = await call(fake, f"{action}_transfer", transfer_process_id=TID, connector="a")
+
+    assert result.structured_content == {"already_done": True, "state": state, "transfer": now}
+
+
+async def test_an_illegal_or_wrong_side_transfer_transition_stays_an_error():
+    # Live: TrueConnector itself names the side when the wrong one calls start.
+    wrong = {
+        "success": False,
+        "message": "State transition aborted, consumer can not transit from REQUESTED to STARTED",
+    }
+    fake = FakeConnector({("PUT", f"/api/v1/transfers/{TID}/start"): lambda _: httpx2.Response(400, json=wrong)})
+
+    result = await call(fake, "start_transfer", transfer_process_id=TID, connector="a")
+
+    assert result.is_error
+    assert "consumer can not transit from REQUESTED to STARTED" in result.content[0].text
+
+
+async def test_transfer_transitions_describe_the_state_machine_and_have_an_output_schema():
+    async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+
+    for action, _ in ACTIONS:
+        tool = tools[f"{action}_transfer"]
+        assert "STARTED -> SUSPENDED | COMPLETED | TERMINATED" in tool.description, action
+        assert "already_done" in tool.description, action
+        assert set(tool.output_schema["properties"]) == {"already_done", "state", "transfer"}, action

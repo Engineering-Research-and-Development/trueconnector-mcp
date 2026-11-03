@@ -1,3 +1,4 @@
+import contextlib
 import json
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
@@ -34,11 +35,22 @@ AUTOMATION = ("automaticNegotiation", "automaticTransfer")
 
 @pytest.fixture
 def manual_negotiation() -> Iterator[None]:
-    """Both tenants with automatic negotiation off; the previous flags are restored afterwards.
+    """Both tenants with automatic negotiation off; the previous flags are restored afterwards."""
+    with automation_off("automaticNegotiation"):
+        yield
 
-    Tenant flags need a SUPER_ADMIN, which the MCP server never has, so this calls the API directly.
-    The PUT resets any flag it is not given, so both are always sent.
-    """
+
+@pytest.fixture
+def manual_transfer() -> Iterator[None]:
+    """Both tenants with automatic transfer off (negotiation stays as it is); restored afterwards."""
+    with automation_off("automaticTransfer"):
+        yield
+
+
+@contextlib.contextmanager
+def automation_off(flag: str) -> Iterator[None]:
+    """Tenant flags need a SUPER_ADMIN, which the MCP server never has, so this calls the API directly.
+    The PUT resets any flag it is not given, so all are always sent."""
     tenants = []
     for connector in stack_settings().connectors:
         http = httpx2.Client(base_url=connector.base_url, timeout=30)
@@ -49,7 +61,7 @@ def manual_negotiation() -> Iterator[None]:
         tenants.append((http, path, flags))
     try:
         for http, path, flags in tenants:
-            http.put(path, json=flags | {"automaticNegotiation": False}).raise_for_status()
+            http.put(path, json=flags | {flag: False}).raise_for_status()
         yield
     finally:
         for http, path, flags in tenants:

@@ -5,7 +5,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from tc_mcp.client import AlreadyInState, Rejected
+from tc_mcp.client import Rejected
 from tc_mcp.tools import (
     DESTRUCTIVE,
     READ_ONLY,
@@ -18,6 +18,7 @@ from tc_mcp.tools import (
     page_params,
     registry,
     seg,
+    transition,
 )
 
 NegotiationState = Literal["REQUESTED", "OFFERED", "ACCEPTED", "AGREED", "VERIFIED", "FINALIZED", "TERMINATED"]
@@ -196,7 +197,7 @@ TRANSITIONS: dict[str, tuple[Role | None, str]] = {
 
 
 def register_transition(mcp: MCPServer, action: str, role: Role | None, description: str) -> None:
-    async def transition(ctx: Context, negotiation_id: str, connector: str | None = None) -> Transition:
+    async def run(ctx: Context, negotiation_id: str, connector: str | None = None) -> Transition:
         client = registry(ctx).get(connector)
         path = f"/api/v1/negotiations/{seg(negotiation_id)}"
         record = await client.request("GET", path)
@@ -206,17 +207,11 @@ def register_transition(mcp: MCPServer, action: str, role: Role | None, descript
                 f"{action} is a {role} action, but {negotiation_id} is the {record['role']} record on connector "
                 f"'{client.connector.name}': call it on the {role}'s connector with find_counterpart_negotiation's @id"
             )
-        already_done, result = False, None
-        try:
-            result = await client.request("PUT", f"{path}/{action}")
-        except AlreadyInState:
-            already_done = True
-        if not (isinstance(result, dict) and "state" in result):
-            result = await client.request("GET", path)
+        already_done, result = await transition(client, path, action)  # verify and finalize answer without the record
         return Transition(already_done=already_done, state=result["state"], negotiation=result)
 
     mcp.add_tool(
-        transition,
+        run,
         name=f"{action}_negotiation",
         description=f"{description} A repeated call returns already_done.\n\n{STATE_MACHINE}",
         annotations=DESTRUCTIVE if action == "terminate" else WRITE,
