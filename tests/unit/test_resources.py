@@ -34,6 +34,7 @@ async def test_resources():
             ("GET", "/api/v1/datasets/missing"): "error_400",
             ("GET", "/api/v1/negotiations/urn:uuid:n"): "envelope_data",
             ("GET", "/api/v1/transfers/urn:uuid:t"): "dataset",
+            ("GET", "/api/v1/audit/types"): "envelope_data",
         }
     )
     async with mcp.Client(build_server(SETTINGS, httpx2.MockTransport(fake))) as client:
@@ -42,6 +43,7 @@ async def test_resources():
             "trueconnector://{connector}/datasets/{id}",
             "trueconnector://{connector}/negotiations/{id}",
             "trueconnector://{connector}/transfers/{id}",
+            "trueconnector://{connector}/audit/types",
         ]
 
         listed = (await client.read_resource("trueconnector://connectors")).contents[0].text
@@ -68,6 +70,9 @@ async def test_resources():
 
         transfer = await client.read_resource("trueconnector://c/transfers/urn:uuid:t")
         assert json.loads(transfer.contents[0].text) == FIXTURES["dataset"]["body"]["data"]
+
+        types = await client.read_resource("trueconnector://c/audit/types")
+        assert json.loads(types.contents[0].text) == FIXTURES["envelope_data"]["body"]["data"]
 
         # A connector error reaches the client with its message, not as an anonymous crash.
         with pytest.raises(mcp.MCPError, match="Contract negotiation with id does-not-exist not found"):

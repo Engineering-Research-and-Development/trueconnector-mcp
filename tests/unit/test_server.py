@@ -42,6 +42,7 @@ async def test_tool_catalog_and_annotations():
         tools = {t.name: t.annotations for t in (await client.list_tools()).tools}
 
     reads = {"get_dspace_version", "browse_remote_catalog", "get_remote_dataset_formats", "get_own_catalog"}
+    reads |= {"get_dashboard", "list_audit_events", "get_audit_event"}
     reads |= {"get_catalog", "get_dataset_formats", "get_dataset_artifact", "get_artifacts"}
     reads |= {
         "list_negotiations",

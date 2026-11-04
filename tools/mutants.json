@@ -257,5 +257,18 @@
   {"name": "link drops the authorization", "file": "src/tc_mcp/tools/datasets.py", "old": "{\"url\": (None, url)} | ({\"authorization\": (None, authorization)} if authorization else {})", "new": "{\"url\": (None, url)}"},
   {"name": "update ignores a new source", "file": "src/tc_mcp/tools/datasets.py", "old": "    artifact = await _artifact(reg, external_url, external_authorization, store) if external_url else None\n", "new": "    artifact = None\n"},
   {"name": "copy does not follow redirects", "file": "src/tc_mcp/client.py", "old": "transport=transport, follow_redirects=True)", "new": "transport=transport, follow_redirects=False)"},
-  {"name": "publish creates before copying", "file": "src/tc_mcp/tools/datasets.py", "old": "    created: list[str] = []\n    try:\n        service = await", "new": "    created: list[str] = []\n    try:\n        artifact = await _artifact(reg, external_url, external_authorization, store)\n        service = await"}
+  {"name": "publish creates before copying", "file": "src/tc_mcp/tools/datasets.py", "old": "    created: list[str] = []\n    try:\n        service = await", "new": "    created: list[str] = []\n    try:\n        artifact = await _artifact(reg, external_url, external_authorization, store)\n        service = await"},
+  {"name": "dashboard sends from_ as is", "file": "src/tc_mcp/tools/ops.py", "old": "    window = {\"from\": from_, \"to\": to, \"bucket\": bucket}\n", "new": "    window = {\"from_\": from_, \"to\": to, \"bucket\": bucket}\n"},
+  {"name": "dashboard window on every view", "file": "src/tc_mcp/tools/ops.py", "old": "    if view not in (\"summary\", \"events\") and any(window.values()):\n", "new": "    if False:\n"},
+  {"name": "dashboard sends empty window values", "file": "src/tc_mcp/tools/ops.py", "old": "    params = {k: v for k, v in window.items() if v is not None}\n", "new": "    params = {k: v or \"\" for k, v in window.items()}\n"},
+  {"name": "dashboard any bucket", "file": "src/tc_mcp/tools/ops.py", "old": "    bucket: Literal[\"hour\", \"day\"] | None = None,\n", "new": "    bucket: str | None = None,\n"},
+  {"name": "dashboard wrong path", "file": "src/tc_mcp/tools/ops.py", "old": "f\"/api/v1/dashboard/{view}\"", "new": "f\"/api/v1/dashboard/summary\""},
+  {"name": "audit codes not checked", "file": "src/tc_mcp/tools/ops.py", "old": "        if unknown := [t for t in event_type if t not in codes]:\n", "new": "        if unknown := []:\n"},
+  {"name": "audit filter dropped", "file": "src/tc_mcp/tools/ops.py", "old": "        params[\"eventType\"] = event_type\n", "new": "        pass\n"},
+  {"name": "audit filter only the first code", "file": "src/tc_mcp/tools/ops.py", "old": "        params[\"eventType\"] = event_type\n", "new": "        params[\"eventType\"] = event_type[0]\n"},
+  {"name": "audit types always looked up", "file": "src/tc_mcp/tools/ops.py", "old": "    if event_type:\n        # An unknown", "new": "    if True:\n        event_type = event_type or []\n        # An unknown"},
+  {"name": "audit paging ignored", "file": "src/tc_mcp/tools/ops.py", "old": "    params = page_params(page, size)\n", "new": "    params = page_params(0, 20)\n"},
+  {"name": "audit event wrong path", "file": "src/tc_mcp/tools/ops.py", "old": "f\"/api/v1/audit/{seg(id)}\"", "new": "f\"/api/v1/audit\""},
+  {"name": "ops tools not registered", "file": "src/tc_mcp/tools/ops.py", "old": "    for read in (get_dspace_version, get_dashboard, list_audit_events, get_audit_event):\n", "new": "    for read in (get_dspace_version,):\n"},
+  {"name": "audit types resource reads the list", "file": "src/tc_mcp/resources.py", "old": "return await _get(ctx, connector, \"/api/v1/audit/types\")", "new": "return await _get(ctx, connector, \"/api/v1/audit\")"}
 ]

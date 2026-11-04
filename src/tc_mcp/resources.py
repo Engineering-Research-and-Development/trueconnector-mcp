@@ -47,3 +47,8 @@ def register(mcp: MCPServer, settings: Settings) -> None:
     async def transfer(connector: str, id: str, ctx: Context) -> Any:
         """One transfer process by this connector's `@id`: state, role, format, agreementId and `downloaded`."""
         return await _get(ctx, connector, f"/api/v1/transfers/{seg(id)}")
+
+    @mcp.resource("trueconnector://{connector}/audit/types", mime_type="application/json")
+    async def audit_types(connector: str, ctx: Context) -> Any:
+        """The audit event types: `code` (what list_audit_events filters by) and `description` (what events show)."""
+        return await _get(ctx, connector, "/api/v1/audit/types")
