@@ -1,7 +1,9 @@
+import contextlib
 import json
 
 import httpx2
 import pytest
+from helpers import SOURCE_DATA
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
@@ -151,3 +153,56 @@ async def test_transfer_resource_reads_the_record(call, mcp_client):
     read = await mcp_client.read_resource(f"trueconnector://a/transfers/{mine['@id']}")
 
     assert json.loads(read.contents[0].text) == await call("get_transfer", id=mine["@id"], connector="a")
+
+
+@contextlib.asynccontextmanager
+async def published(call, **args):
+    """A dataset published on b for one test, deleted afterwards with its distribution and data service."""
+    offer = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "5"}]}
+    dataset = await call(
+        "publish_dataset", title="mcp transfer", description="test", offers=[offer], connector="b", **args
+    )
+    [distribution] = dataset["distribution"]
+    try:
+        yield dataset
+    finally:
+        await call("delete_dataset", id=dataset["@id"], connector="b")
+        await call("delete_distribution", id=distribution["@id"], connector="b")
+        await call("delete_data_service", id=distribution["accessService"]["@id"], connector="b")
+
+
+async def transfer_of(call, dataset_id, fmt):
+    """Negotiates `dataset_id` from a and requests its transfer: (consumer @id, provider @id)."""
+    negotiation = await call("request_contract", peer="b", dataset_id=dataset_id, connector="a")
+    agreed = await call(
+        "wait_for_state", kind="negotiation", id=negotiation["@id"], states=["FINALIZED"], connector="a"
+    )
+    agreement_id = agreed["object"]["agreement"]["@id"]
+    mine = (await call("find_transfer_for_agreement", agreement_id=agreement_id, connector="a"))["@id"]
+    theirs = (await call("find_transfer_for_agreement", agreement_id=agreement_id, connector="b"))["@id"]
+    await call("request_transfer", transfer_process_id=mine, format=fmt, connector="a")
+    return mine, theirs
+
+
+@pytest.mark.parametrize("fmt", ["HttpData-PULL", "HttpData-PUSH"])
+async def test_a_published_dataset_is_transferred_with_its_data(call, source_url, fmt):
+    async with published(call, external_url=source_url, format=fmt) as dataset:
+        mine, _ = await transfer_of(call, dataset["@id"], fmt)
+
+        await downloaded(call, mine, "a")
+
+        assert await fetched(call, mine) == json.loads(SOURCE_DATA)
+
+
+async def test_a_failed_data_move_is_reported(call, manual_transfer):
+    # A linked (EXTERNAL) source is the one way to make a move fail: the connector fetches it only during the move.
+    async with published(call, external_url="http://unreachable.invalid/data.json", store="link") as dataset:
+        mine, theirs = await transfer_of(call, dataset["@id"], "HttpData-PULL")
+        await call("start_transfer", transfer_process_id=theirs, connector="b")
+        assert (await call("move_transfer_data", transfer_process_id=mine, connector="a"))["accepted"] is True
+
+        waited = await call("wait_for_state", kind="transfer", id=mine, states=["DOWNLOADED"], connector="a")
+
+        # TrueConnector itself reports nothing: the transfer just stays STARTED without data.
+        assert (waited["outcome"], waited["state"], waited["object"]["downloaded"]) == ("failed", "STARTED", False)
+        assert "connector logs" in waited["hint"]

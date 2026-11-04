@@ -1,9 +1,21 @@
 import json
 
+import httpx2
+import mcp
 import pytest
-from helpers import COUNT_5, DATASET, DISTRIBUTION, FIXTURES, SERVICE, FakeConnector, call, form_parts
+from helpers import COUNT_5, DATASET, DISTRIBUTION, FIXTURES, SERVICE, TWO_CONNECTORS, FakeConnector, call, form_parts
+
+from tc_mcp.server import build_server
 
 pytestmark = pytest.mark.anyio
+
+DATA = b'{"t": 1}'
+SOURCE = ("GET", "/sensors.json")
+
+
+def source(request: httpx2.Request) -> httpx2.Response:
+    return httpx2.Response(200, content=DATA, headers={"content-type": "text/csv; charset=utf-8"})
+
 
 UNTIL_2030 = {
     "action": "USE",
@@ -31,6 +43,7 @@ DISTRIBUTION_PATH = f"/api/v1/distributions/{DISTRIBUTION['@id']}"
 async def test_create_dataset_sends_multipart_with_resolved_distributions():
     fake = FakeConnector(
         {
+            SOURCE: source,
             ("GET", f"/api/v1/distributions/{DISTRIBUTION['@id']}"): "distribution",
             ("POST", "/api/v1/datasets"): "dataset",
         }
@@ -50,7 +63,90 @@ async def test_create_dataset_sends_multipart_with_resolved_distributions():
         "distribution": [DISTRIBUTION],  # resolved from its id
         "hasPolicy": [{"permission": [COUNT_5]}, {"permission": [UNTIL_2030]}],  # one offer per permission
     }
+    assert parts == {"file": DATA.decode()}
+    assert b'filename="sensors.json"' in post.content and b"Content-Type: text/csv\r\n" in post.content
+    [download] = fake.calls(*SOURCE)
+    assert (download.url.host, download.headers["authorization"]) == ("data.example", "Bearer s3cret")
+
+
+async def test_create_dataset_link_keeps_only_the_url():
+    fake = FakeConnector(
+        {
+            ("GET", f"/api/v1/distributions/{DISTRIBUTION['@id']}"): "distribution",
+            ("POST", "/api/v1/datasets"): "dataset",
+        }
+    )
+
+    result = await call(fake, "create_dataset", **DATASET_ARGS, store="link", external_authorization="Bearer s3cret")
+
+    assert not result.is_error, result.content
+    parts = form_parts(fake.calls("POST", "/api/v1/datasets")[0])
+    del parts["dataset"]
     assert parts == {"url": "https://data.example/sensors.json", "authorization": "Bearer s3cret"}
+    assert not fake.calls(*SOURCE)  # the connector fetches it, not this server
+
+
+def too_big(request: httpx2.Request) -> httpx2.Response:
+    return httpx2.Response(200, content=b"x" * 1001)
+
+
+def unreachable(request: httpx2.Request) -> httpx2.Response:
+    raise httpx2.ConnectError("name resolution failed", request=request)
+
+
+@pytest.mark.parametrize(
+    ("answer", "reason"),
+    [
+        (lambda _: httpx2.Response(404), "HTTP 404"),
+        (unreachable, "ConnectError"),
+        (too_big, "larger than 0.001 MB (TC_MAX_COPY_MB)"),
+    ],
+    ids=["missing", "unreachable", "too big"],
+)
+async def test_publish_dataset_creates_nothing_when_the_source_cannot_be_copied(answer, reason):
+    fake = FakeConnector({SOURCE: answer})
+    settings = TWO_CONNECTORS.model_copy(update={"max_copy_mb": 0.001})
+
+    async with mcp.Client(build_server(settings, httpx2.MockTransport(fake))) as client:
+        result = await client.call_tool("publish_dataset", PUBLISH_ARGS)
+
+    assert result.is_error
+    assert f"could not copy https://data.example/sensors.json: {reason}" in result.content[0].text
+    assert [r.url.path for r in fake.requests] == ["/sensors.json"]  # nothing created on the connector
+
+
+async def test_a_redirected_source_is_followed():
+    fake = FakeConnector(
+        {
+            SOURCE: lambda _: httpx2.Response(302, headers={"location": "https://cdn.example/real.json"}),
+            ("GET", "/real.json"): source,
+            ("GET", f"/api/v1/distributions/{DISTRIBUTION['@id']}"): "distribution",
+            ("POST", "/api/v1/datasets"): "dataset",
+        }
+    )
+
+    result = await call(fake, "create_dataset", **DATASET_ARGS)
+
+    assert not result.is_error, result.content
+    assert form_parts(fake.calls("POST", "/api/v1/datasets")[0])["file"] == DATA.decode()
+
+
+async def test_a_source_of_exactly_the_limit_is_copied():
+    fake = FakeConnector(
+        {
+            SOURCE: lambda _: httpx2.Response(200, content=b"x" * 1000),
+            ("POST", "/api/v1/dataservices"): "data_service",
+            ("POST", "/api/v1/distributions"): "distribution",
+            ("POST", "/api/v1/datasets"): "dataset",
+        }
+    )
+    settings = TWO_CONNECTORS.model_copy(update={"max_copy_mb": 0.001})
+
+    async with mcp.Client(build_server(settings, httpx2.MockTransport(fake))) as client:
+        result = await client.call_tool("publish_dataset", PUBLISH_ARGS)
+
+    assert not result.is_error, result.content
+    assert b"Content-Type: application/octet-stream" in fake.calls("POST", "/api/v1/datasets")[0].content
 
 
 @pytest.mark.parametrize(
@@ -90,6 +186,7 @@ async def test_update_dataset_replaces_offers_distributions_and_artifact_when_gi
     path = f"/api/v1/datasets/{DATASET['@id']}"
     fake = FakeConnector(
         {
+            ("GET", "/v2"): source,
             ("GET", path): "dataset",
             ("GET", f"/api/v1/distributions/{DISTRIBUTION['@id']}"): "distribution",
             ("PUT", path): "dataset",
@@ -106,19 +203,22 @@ async def test_update_dataset_replaces_offers_distributions_and_artifact_when_gi
         connector="a",
     )
 
-    parts = form_parts(fake.calls("PUT", path)[0])
+    [put] = fake.calls("PUT", path)
+    parts = form_parts(put)
     dataset = json.loads(parts.pop("dataset"))
     assert (dataset["distribution"], dataset["hasPolicy"], dataset["title"]) == (
         [DISTRIBUTION],
         [{"permission": [COUNT_5]}],
         DATASET["title"],
     )
-    assert parts == {"url": "http://data.example/v2"}
+    assert parts == {"file": DATA.decode()}
+    assert b'filename="v2"' in put.content
 
 
 async def test_publish_dataset_chains_service_distribution_and_dataset():
     fake = FakeConnector(
         {
+            SOURCE: source,
             ("POST", "/api/v1/dataservices"): "data_service",
             ("POST", "/api/v1/distributions"): "distribution",
             ("POST", "/api/v1/datasets"): "dataset",
@@ -129,20 +229,26 @@ async def test_publish_dataset_chains_service_distribution_and_dataset():
 
     assert not result.is_error, result.content
     assert json.loads(result.content[0].text) == DATASET
-    assert [r.url.path for r in fake.requests] == ["/api/v1/dataservices", "/api/v1/distributions", "/api/v1/datasets"]
-    service, distribution = (json.loads(r.content) for r in fake.requests[:2])
+    assert [r.url.path for r in fake.requests] == [
+        "/sensors.json",  # the source is copied before anything is created
+        "/api/v1/dataservices",
+        "/api/v1/distributions",
+        "/api/v1/datasets",
+    ]
+    service, distribution = (json.loads(r.content) for r in fake.requests[1:3])
     assert service == {"title": "sensors service"}
     assert distribution == {"title": "sensors (HttpData-PULL)", "format": "HttpData-PULL", "accessService": SERVICE}
-    parts = form_parts(fake.requests[2])
+    parts = form_parts(fake.requests[3])
     dataset = json.loads(parts.pop("dataset"))
     assert dataset["distribution"] == [DISTRIBUTION]  # the created one, as the connector returned it
     assert dataset["hasPolicy"] == [{"permission": [COUNT_5]}]
-    assert parts == {"url": "https://data.example/sensors.json"}
+    assert parts == {"file": DATA.decode()}
 
 
 async def test_publish_dataset_deletes_what_it_created_when_a_step_fails():
     fake = FakeConnector(
         {
+            SOURCE: source,
             ("POST", "/api/v1/dataservices"): "data_service",
             ("POST", "/api/v1/distributions"): "distribution",
             ("POST", "/api/v1/datasets"): "error_500",
@@ -156,7 +262,7 @@ async def test_publish_dataset_deletes_what_it_created_when_a_step_fails():
     assert result.is_error
     assert "connector internal error" in result.content[0].text
     assert "deleted the 2 object(s) it had created" in result.content[0].text
-    assert [(r.method, r.url.path) for r in fake.requests[3:]] == [
+    assert [(r.method, r.url.path) for r in fake.requests[4:]] == [
         ("DELETE", DISTRIBUTION_PATH),
         ("DELETE", SERVICE_PATH),
     ]
@@ -165,6 +271,7 @@ async def test_publish_dataset_deletes_what_it_created_when_a_step_fails():
 async def test_publish_dataset_rollback_survives_a_failing_delete():
     fake = FakeConnector(
         {
+            SOURCE: source,
             ("POST", "/api/v1/dataservices"): "data_service",
             ("POST", "/api/v1/distributions"): "error_400",
             ("DELETE", SERVICE_PATH): "error_500",

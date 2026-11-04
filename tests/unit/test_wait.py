@@ -55,15 +55,20 @@ async def test_stops_at_a_final_state_not_asked_for():
 
 
 async def test_times_out_with_the_last_state_seen():
-    fake = FakeConnector({("GET", PATH): states("REQUESTED")})
+    answer, polled_at = states("REQUESTED"), []
 
-    started = anyio.current_time()
+    def timed(request):
+        polled_at.append(anyio.current_time())
+        return answer(request)
+
+    fake = FakeConnector({("GET", PATH): timed})
+
     with anyio.fail_after(5):  # a wait that ignores its timeout must fail the test, not hang it
         result = await wait(fake, states=["FINALIZED"], timeout_s=0.6, interval_s=0.5)
 
     assert (result.structured_content["outcome"], result.structured_content["state"]) == ("timeout", "REQUESTED")
-    assert len(fake.requests) == 3  # at 0 s, 0.5 s and the deadline
-    assert anyio.current_time() - started < 0.9  # the last sleep is cut short at the deadline
+    assert len(polled_at) == 3  # at 0 s, 0.5 s and the deadline
+    assert polled_at[-1] - polled_at[0] < 0.9  # the last sleep is cut short at the deadline (else 1.0 s)
 
 
 async def test_reports_progress_while_waiting():

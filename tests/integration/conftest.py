@@ -1,5 +1,7 @@
 import contextlib
+import http.server
 import json
+import threading
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
@@ -8,7 +10,7 @@ from urllib.parse import urlparse
 import httpx2
 import mcp
 import pytest
-from helpers import Call
+from helpers import SOURCE_DATA, Call
 
 from tc_mcp.client import TCClient
 from tc_mcp.config import Settings
@@ -27,6 +29,27 @@ def require_stack() -> None:
             httpx2.get(f"{connector.base_url}/.well-known/dspace-version", timeout=3).raise_for_status()
         except httpx2.HTTPError:
             pytest.skip(f"TrueConnector stack is down ({connector.name} at {connector.base_url})")
+
+
+@pytest.fixture(scope="session")
+def source_url() -> Iterator[str]:
+    """A data source for publish_dataset: SOURCE_DATA, served on the host where the MCP server runs."""
+
+    class Source(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(SOURCE_DATA)))
+            self.end_headers()
+            self.wfile.write(SOURCE_DATA)
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Source)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/data.json"
+    server.shutdown()
 
 
 SUPER_ADMIN = {"email": "superadmin@mail.com", "password": "password"}  # the local stack's public demo account

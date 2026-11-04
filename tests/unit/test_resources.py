@@ -104,7 +104,7 @@ async def test_handle_incoming_negotiations_prompt_leaves_decisions_to_the_user(
     assert {a.name: a.required for a in prompt.arguments} == {"connector": True}
     text = result.messages[0].content.text
     assert "For each S in REQUESTED, ACCEPTED, VERIFIED: call list_negotiations(" in text
-    assert 'role="provider"' in text and 'connector="b"' in text
+    assert 'list_negotiations(role="provider", state=S,' in text and 'connector="b"' in text
     assert "Never agree, counteroffer or terminate without my decision" in text
     assert text.index("For each VERIFIED one") > text.index("Never agree")
     assert 'list_transfers(role="provider", state="REQUESTED", connector="b")' in text

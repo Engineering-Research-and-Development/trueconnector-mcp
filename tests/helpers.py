@@ -25,6 +25,8 @@ DATASET = FIXTURES["dataset"]["body"]["data"]
 COUNT_5 = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "5"}]}
 
 B_PROTOCOL = "http://connector-b:8080/connector-b"
+SOURCE_DATA = b'{"source": "served by the test", "values": [1, 2, 3]}'
+
 TWO_CONNECTORS = Settings(
     _env_file=None,
     connectors=[
