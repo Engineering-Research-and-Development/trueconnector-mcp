@@ -1,4 +1,7 @@
+import contextlib
+import http.server
 import json
+import threading
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
@@ -7,7 +10,7 @@ from urllib.parse import urlparse
 import httpx2
 import mcp
 import pytest
-from helpers import Call
+from helpers import SOURCE_DATA, Call
 
 from tc_mcp.client import TCClient
 from tc_mcp.config import Settings
@@ -28,17 +31,49 @@ def require_stack() -> None:
             pytest.skip(f"TrueConnector stack is down ({connector.name} at {connector.base_url})")
 
 
+@pytest.fixture(scope="session")
+def source_url() -> Iterator[str]:
+    """A data source for publish_dataset: SOURCE_DATA, served on the host where the MCP server runs."""
+
+    class Source(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(SOURCE_DATA)))
+            self.end_headers()
+            self.wfile.write(SOURCE_DATA)
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Source)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/data.json"
+    server.shutdown()
+
+
 SUPER_ADMIN = {"email": "superadmin@mail.com", "password": "password"}  # the local stack's public demo account
 AUTOMATION = ("automaticNegotiation", "automaticTransfer")
 
 
 @pytest.fixture
 def manual_negotiation() -> Iterator[None]:
-    """Both tenants with automatic negotiation off; the previous flags are restored afterwards.
+    """Both tenants with automatic negotiation off; the previous flags are restored afterwards."""
+    with automation_off("automaticNegotiation"):
+        yield
 
-    Tenant flags need a SUPER_ADMIN, which the MCP server never has, so this calls the API directly.
-    The PUT resets any flag it is not given, so both are always sent.
-    """
+
+@pytest.fixture
+def manual_transfer() -> Iterator[None]:
+    """Both tenants with automatic transfer off (negotiation stays as it is); restored afterwards."""
+    with automation_off("automaticTransfer"):
+        yield
+
+
+@contextlib.contextmanager
+def automation_off(flag: str) -> Iterator[None]:
+    """Tenant flags need a SUPER_ADMIN, which the MCP server never has, so this calls the API directly.
+    The PUT resets any flag it is not given, so all are always sent."""
     tenants = []
     for connector in stack_settings().connectors:
         http = httpx2.Client(base_url=connector.base_url, timeout=30)
@@ -49,7 +84,7 @@ def manual_negotiation() -> Iterator[None]:
         tenants.append((http, path, flags))
     try:
         for http, path, flags in tenants:
-            http.put(path, json=flags | {"automaticNegotiation": False}).raise_for_status()
+            http.put(path, json=flags | {flag: False}).raise_for_status()
         yield
     finally:
         for http, path, flags in tenants:

@@ -18,3 +18,4 @@ class Settings(BaseSettings):
     timeout_s: float = 30.0
     read_only: bool = False
     max_concurrency: int = Field(default=4, ge=1)
+    max_copy_mb: float = Field(default=50, gt=0)

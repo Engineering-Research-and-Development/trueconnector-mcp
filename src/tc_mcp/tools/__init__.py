@@ -5,7 +5,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 
-from tc_mcp.client import Registry
+from tc_mcp.client import AlreadyInState, Registry, TCClient
 
 READ_ONLY = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False)
@@ -62,6 +62,18 @@ class Permission(BaseModel):
     # TrueConnector accepts and negotiates an unconstrained permission, but the consumer's download then always
     # fails ("Policy check returned an invalid response"), so the data could never be obtained.
     constraint: list[Constraint] = Field(min_length=1)
+
+
+async def transition(client: TCClient, path: str, action: str) -> tuple[bool, dict[str, Any]]:
+    """PUT `{path}/{action}`; a repeat (already in that state) is not an error. Returns (already_done, record)."""
+    already_done, result = False, None
+    try:
+        result = await client.request("PUT", f"{path}/{action}")
+    except AlreadyInState:
+        already_done = True
+    if not (isinstance(result, dict) and "state" in result):  # a repeat, or an answer without the record
+        result = await client.request("GET", path)
+    return already_done, result
 
 
 def registry(ctx: Context) -> Registry:

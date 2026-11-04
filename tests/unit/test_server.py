@@ -50,14 +50,19 @@ async def test_tool_catalog_and_annotations():
         "validate_offer",
         "enforce_agreement",
         "wait_for_state",
+        "list_transfers",
+        "get_transfer",
+        "find_transfer_for_agreement",
+        "get_transfer_data_url",
     }
     reads |= {f"list_{kind}" for kind in ("datasets", "distributions", "data_services")}
     reads |= {f"get_{kind}" for kind in ("dataset", "distribution", "data_service")}
     kinds = ("catalog", "data_service", "distribution", "dataset")
     writes = {f"{verb}_{kind}" for verb in ("create", "update") for kind in kinds} | {"publish_dataset"}
-    writes |= {"request_contract", "send_counteroffer"}
+    writes |= {"request_contract", "send_counteroffer", "request_transfer", "move_transfer_data"}
     writes |= {f"{action}_negotiation" for action in ("accept", "agree", "verify", "finalize")}
-    deletes = {f"delete_{kind}" for kind in kinds} | {"terminate_negotiation"}
+    writes |= {f"{action}_transfer" for action in ("start", "complete", "suspend")}
+    deletes = {f"delete_{kind}" for kind in kinds} | {"terminate_negotiation", "terminate_transfer"}
     assert set(tools) == reads | writes | deletes
     for name in reads:
         assert tools[name].read_only_hint, name

@@ -78,7 +78,7 @@ async def test_data_service_and_distribution_create_update_delete(call):
         await call("delete_data_service", id=service["@id"], connector="b")
 
 
-async def test_dataset_create_update_delete(call):
+async def test_dataset_create_update_delete(call, source_url):
     service = await call("create_data_service", title="mcp svc", connector="b")
     dist = await call(
         "create_distribution", title="mcp dist", format="HttpData-PULL", access_service_id=service["@id"], connector="b"
@@ -96,6 +96,7 @@ async def test_dataset_create_update_delete(call):
             distribution_ids=[dist["@id"]],
             offers=[count, until],
             external_url="https://example.com/data.json",
+            store="link",
             connector="b",
         )
         try:
@@ -111,10 +112,12 @@ async def test_dataset_create_update_delete(call):
             assert [o["@id"] for o in renamed["hasPolicy"]] == offer_ids
             assert renamed["distribution"][0]["@id"] == dist["@id"]
 
-            moved = await call(
-                "update_dataset", id=dataset["@id"], external_url="https://example.com/v2", connector="b"
+            copied = await call("update_dataset", id=dataset["@id"], external_url=source_url, connector="b")
+            assert (copied["title"], copied["artifact"]["artifactType"], copied["artifact"]["filename"]) == (
+                "mcp dataset v2",
+                "FILE",
+                "data.json",
             )
-            assert (moved["title"], moved["artifact"]["value"]) == ("mcp dataset v2", "https://example.com/v2")
         finally:
             await call("delete_dataset", id=dataset["@id"], connector="b")
     finally:
@@ -132,7 +135,7 @@ async def test_resources_read_live(mcp_client):
     assert dataset["@id"] == dataset_id
 
 
-async def test_publish_on_b_and_discover_from_a(call, mcp_client):
+async def test_publish_on_b_and_discover_from_a(call, mcp_client, source_url):
     """The provider/consumer round trip: publish on b, find it from a through the DSP catalog, then remove it."""
     offer = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "3"}]}
     dataset = await call(
@@ -140,12 +143,15 @@ async def test_publish_on_b_and_discover_from_a(call, mcp_client):
         title="mcp flow",
         description="end-to-end catalog flow",
         offers=[offer],
-        external_url="https://example.com/flow.json",
+        external_url=source_url,
         connector="b",
     )
     [distribution] = dataset["distribution"]
     service_id = distribution["accessService"]["@id"]
     try:
+        artifact = await call("get_dataset_artifact", id=dataset["@id"], connector="b")
+        assert (artifact["artifactType"], artifact["filename"]) == ("FILE", "data.json")
+
         own = await call("get_own_catalog", connector="b")
         assert dataset["@id"] in [d["@id"] for d in own["dataset"]]
 
