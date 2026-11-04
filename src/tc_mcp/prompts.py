@@ -1,6 +1,47 @@
+from typing import Literal
+
 from mcp.server.mcpserver import MCPServer
 
+from tc_mcp.tools import negotiation, transfer
 from tc_mcp.tools.services import Format
+
+# Codes from GET /api/v1/audit/types whose events explain a stuck or failed process.
+FAILURE_EVENTS = {
+    "negotiation": [
+        "PROTOCOL_NEGOTIATION_STATE_TRANSITION_ERROR",
+        "PROTOCOL_NEGOTIATION_POLICY_EVALUATION_DENIED",
+        "PROTOCOL_NEGOTIATION_INVALID_OFFER",
+        "PROTOCOL_NEGOTIATION_REJECTED",
+        "PROTOCOL_NEGOTIATION_TERMINATED",
+    ],
+    "transfer": ["TRANSFER_FAILED", "PROTOCOL_TRANSFER_STATE_TRANSITION_ERROR", "PROTOCOL_TRANSFER_TERMINATED"],
+}
+
+NEGOTIATION_CHECKS = """- REQUESTED, ACCEPTED or VERIFIED: the provider has not acted yet (manual negotiation);
+  handle_incoming_negotiations on the provider's connector works through it.
+- OFFERED on the consumer: the provider proposed other terms; the consumer accepts, counteroffers or terminates.
+- AGREED on the consumer: the consumer must verify_negotiation.
+- A provider record without callbackAddress was started by the provider: TrueConnector cannot complete such a
+  negotiation (the provider's agree, finalize and terminate fail with 500); only the consumer can terminate it.
+- TERMINATED: the events say which side ended it and why.
+- FINALIZED: enforce_agreement tells whether the agreement still allows downloads."""
+
+TRANSFER_CHECKS = """- STARTED, downloaded=false, downloadInProgress=false after a data move: the move failed silently,
+  and TrueConnector reports nothing on the transfer. The TRANSFER_FAILED event of the moving side (PULL:
+  consumer, PUSH: provider) has the reason in details.errorMessage; in automatic mode the connector's own log
+  even calls that move a success. Usual causes:
+  - "Failed to get stream. HTTP response code: 404" on PULL, or "Error generating pre-signed URL" on PUSH: the
+    dataset links its data (get_dataset_artifact on the provider: artifactType EXTERNAL), which current
+    TrueConnector builds cannot transfer. Publishing it again with publish_dataset(store="copy") fixes it.
+  - Connection errors to the storage host: s3.externalPresignedEndpoint in the connector's configuration must be
+    reachable from the other connector's container (localhost:9000 is not; host.docker.internal:9000 is on
+    Docker Desktop).
+- STARTED with nothing moved yet: move_transfer_data on the moving side starts it.
+- COMPLETED with downloaded=false: it was completed before any data moved, and COMPLETED is final; getting the
+  data needs a new negotiation.
+- REQUESTED: the provider has not started it yet (manual transfer).
+- enforce_agreement(agreement_id=agreementId) allowed=false: the agreement's policy no longer allows downloads
+  (COUNT used up or DATE_TIME passed)."""
 
 
 def register(mcp: MCPServer) -> None:
@@ -65,6 +106,46 @@ If the call fails, show me the error instead of retrying with different values."
 
 Finish with N, A, T and the final states. If a call fails, show me the error and stop instead of retrying with
 different values."""
+
+    @mcp.prompt()
+    def diagnose_process(kind: Literal["negotiation", "transfer"], id: str, connector: str) -> str:
+        """Read-only: explain why a negotiation or transfer is stuck or failed, and what would move it on."""
+        on = f'connector="{connector}"'
+        if kind == "negotiation":
+            reads = "get_negotiation, find_counterpart_negotiation, list_audit_events, enforce_agreement"
+            read = f'get_negotiation(id="{id}", {on}). Note its state, role, consumerPid and agreement["@id"] if set'
+            counterpart = f'find_counterpart_negotiation(id="{id}", peer_connector=<the other connector>, {on})'
+            checks, machine = NEGOTIATION_CHECKS, negotiation.STATE_MACHINE
+        else:
+            reads = (
+                "get_transfer, find_transfer_for_agreement, list_audit_events, enforce_agreement, get_dataset_artifact"
+            )
+            read = (
+                f'get_transfer(id="{id}", {on}). Note its state, role, format, consumerPid, agreementId, datasetId, '
+                "downloaded and downloadInProgress"
+            )
+            counterpart = (
+                "find_transfer_for_agreement(agreement_id=<its agreementId>, role=<the other role>, "
+                "connector=<the other connector>)"
+            )
+            checks, machine = TRANSFER_CHECKS, transfer.STATE_MACHINE
+        codes = ", ".join(f'"{c}"' for c in FAILURE_EVENTS[kind])
+        return f"""Diagnose {kind} {id} on connector "{connector}". This is read-only: call only {reads}.
+Other tools named below are fixes to propose to me, never to run.
+
+1. {read}.
+2. If the other side is one of this server's connectors (trueconnector://connectors), read its record:
+   {counterpart}. Different states on the two sides mean a protocol message was lost or refused.
+3. Events: list_audit_events(event_type=[{codes}], size=100, {on}), and the same on the other side's connector
+   if configured. Keep the events whose details.consumerPid is this {kind}'s consumerPid; their description and
+   details (errorMessage, currentState, newState) say what went wrong.
+4. If there is an agreement: enforce_agreement(agreement_id=<its id>, {on}).
+5. Check the known silent failures:
+{checks}
+6. Explain to me: the state on each side, what went wrong (quote the events), and the next legal steps from the
+   state machine below, as exact tool calls with the connector each one runs on. I decide whether to run them.
+
+{machine}"""
 
     @mcp.prompt()
     def handle_incoming_negotiations(connector: str) -> str:

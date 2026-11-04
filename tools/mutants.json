@@ -231,7 +231,7 @@
   {"name": "a running move never noticed", "file": "src/tc_mcp/tools/wait.py", "old": "                seen_running = True\n", "new": "                pass\n"},
   {"name": "an unstarted move called failed", "file": "src/tc_mcp/tools/wait.py", "old": "            elif seen_running or (client.connector.name, record[\"@id\"]) in reg.moves_started:\n", "new": "            else:\n"},
   {"name": "moves of other connectors count", "file": "src/tc_mcp/tools/wait.py", "old": "(client.connector.name, record[\"@id\"]) in reg.moves_started", "new": "any(record[\"@id\"] == m[1] for m in reg.moves_started)"},
-  {"name": "failed without a hint", "file": "src/tc_mcp/tools/wait.py", "old": "object=record, hint=FAILED_MOVE)", "new": "object=record)"},
+  {"name": "failed without a hint", "file": "src/tc_mcp/tools/wait.py", "old": "object=record, hint=hint)", "new": "object=record)"},
   {"name": "moves_started not recorded", "file": "src/tc_mcp/tools/transfer.py", "old": "    reg.moves_started.add((client.connector.name, record[\"@id\"]))\n", "new": ""},
   {"name": "transfer resource reads the negotiation", "file": "src/tc_mcp/resources.py", "old": "return await _get(ctx, connector, f\"/api/v1/transfers/{seg(id)}\")", "new": "return await _get(ctx, connector, f\"/api/v1/negotiations/{seg(id)}\")"},
   {"name": "consume_dataset PULL and PUSH swapped", "file": "src/tc_mcp/prompts.py", "old": "        if format == \"HttpData-PULL\":\n", "new": "        if format != \"HttpData-PULL\":\n"},
@@ -270,5 +270,17 @@
   {"name": "audit paging ignored", "file": "src/tc_mcp/tools/ops.py", "old": "    params = page_params(page, size)\n", "new": "    params = page_params(0, 20)\n"},
   {"name": "audit event wrong path", "file": "src/tc_mcp/tools/ops.py", "old": "f\"/api/v1/audit/{seg(id)}\"", "new": "f\"/api/v1/audit\""},
   {"name": "ops tools not registered", "file": "src/tc_mcp/tools/ops.py", "old": "    for read in (get_dspace_version, get_dashboard, list_audit_events, get_audit_event):\n", "new": "    for read in (get_dspace_version,):\n"},
-  {"name": "audit types resource reads the list", "file": "src/tc_mcp/resources.py", "old": "return await _get(ctx, connector, \"/api/v1/audit/types\")", "new": "return await _get(ctx, connector, \"/api/v1/audit\")"}
+  {"name": "audit types resource reads the list", "file": "src/tc_mcp/resources.py", "old": "return await _get(ctx, connector, \"/api/v1/audit/types\")", "new": "return await _get(ctx, connector, \"/api/v1/audit\")"},
+  {"name": "diagnose allows a write tool", "file": "src/tc_mcp/prompts.py", "old": "            reads = \"get_negotiation, find_counterpart_negotiation, list_audit_events, enforce_agreement\"\n", "new": "            reads = \"get_negotiation, find_counterpart_negotiation, list_audit_events, enforce_agreement, verify_negotiation\"\n"},
+  {"name": "diagnose transfer allows moving data", "file": "src/tc_mcp/prompts.py", "old": "list_audit_events, enforce_agreement, get_dataset_artifact\"", "new": "list_audit_events, enforce_agreement, move_transfer_data\""},
+  {"name": "diagnose kinds swapped", "file": "src/tc_mcp/prompts.py", "old": "        if kind == \"negotiation\":\n            reads", "new": "        if kind != \"negotiation\":\n            reads"},
+  {"name": "diagnose skips the failure events", "file": "src/tc_mcp/prompts.py", "old": "    \"transfer\": [\"TRANSFER_FAILED\", \"PROTOCOL_TRANSFER_STATE_TRANSITION_ERROR\", \"PROTOCOL_TRANSFER_TERMINATED\"],", "new": "    \"transfer\": [\"PROTOCOL_TRANSFER_STATE_TRANSITION_ERROR\", \"PROTOCOL_TRANSFER_TERMINATED\"],"},
+  {"name": "diagnose names a code that does not exist", "file": "src/tc_mcp/prompts.py", "old": "        \"PROTOCOL_NEGOTIATION_REJECTED\",\n", "new": "        \"NEGOTIATION_REJECTED\",\n"},
+  {"name": "diagnose does not match events", "file": "src/tc_mcp/prompts.py", "old": " Keep the events whose details.consumerPid is this {kind}'s consumerPid;", "new": " Read the events;"},
+  {"name": "diagnose without the state machine", "file": "src/tc_mcp/prompts.py", "old": "            checks, machine = TRANSFER_CHECKS, transfer.STATE_MACHINE\n", "new": "            checks, machine = TRANSFER_CHECKS, \"\"\n"},
+  {"name": "diagnose forgets the EXTERNAL cause", "file": "src/tc_mcp/prompts.py", "old": "    dataset links its data (get_dataset_artifact on the provider: artifactType EXTERNAL), which current\n", "new": "    dataset links its data, which current\n"},
+  {"name": "diagnose forgets the provider-started limit", "file": "src/tc_mcp/prompts.py", "old": "- A provider record without callbackAddress was started by the provider: TrueConnector cannot complete such a\n", "new": "- A provider record may lack callbackAddress: TrueConnector cannot complete such a\n"},
+  {"name": "diagnose connector optional", "file": "src/tc_mcp/prompts.py", "old": "def diagnose_process(kind: Literal[\"negotiation\", \"transfer\"], id: str, connector: str) -> str:", "new": "def diagnose_process(kind: Literal[\"negotiation\", \"transfer\"], id: str, connector: str = \"a\") -> str:"},
+  {"name": "hint names another connector", "file": "src/tc_mcp/tools/wait.py", "old": "hint = failed_move(client.connector.name, record[\"consumerPid\"])", "new": "hint = failed_move(\"b\", record[\"consumerPid\"])"},
+  {"name": "hint names the transfer id instead of the consumerPid", "file": "src/tc_mcp/tools/wait.py", "old": "hint = failed_move(client.connector.name, record[\"consumerPid\"])", "new": "hint = failed_move(client.connector.name, record[\"@id\"])"}
 ]

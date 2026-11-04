@@ -109,11 +109,12 @@ async def test_rejects_unknown_states_and_bad_limits_before_polling(bad):
 
 
 TID = "urn:uuid:720f3f3a-d5de-43b0-989d-80d42fae8665"
+CONSUMER_PID = "urn:uuid:c0n5"
 TRANSFER_PATH = f"/api/v1/transfers/{TID}"
 
 
 def transfer(state="STARTED", downloaded=False, running=False):
-    return {"@id": TID, "role": "consumer", "format": "HttpData-PULL", "state": state} | {
+    return {"@id": TID, "consumerPid": CONSUMER_PID, "role": "consumer", "format": "HttpData-PULL", "state": state} | {
         "downloaded": downloaded,
         "downloadInProgress": running,
     }
@@ -175,7 +176,10 @@ async def test_wait_detects_failed_move_started_by_this_server():
 
     assert moved.structured_content["accepted"] is True
     assert result.structured_content["outcome"] == "failed"
-    assert "ended without data" in result.structured_content["hint"]
+    hint = result.structured_content["hint"]
+    assert "ended without data" in hint
+    assert 'list_audit_events(event_type=["TRANSFER_FAILED"], connector="a")' in hint
+    assert f'details.consumerPid is "{CONSUMER_PID}"' in hint
     assert len(fake.calls("GET", TRANSFER_PATH)) == 2  # failed on the first poll, no waiting
 
 

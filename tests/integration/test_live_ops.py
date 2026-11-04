@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+from tc_mcp.prompts import FAILURE_EVENTS
+
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
 
@@ -31,3 +33,12 @@ async def test_audit_events_are_filtered_by_code_and_read_one_by_one(call, mcp_c
     assert await call("get_audit_event", id=first["id"], connector="a") == first
     wrong = await mcp_client.call_tool("list_audit_events", {"event_type": [login], "connector": "a"})
     assert wrong.is_error and "unknown event type codes" in wrong.content[0].text
+
+
+@pytest.mark.parametrize("connector", ["a", "b"])
+async def test_diagnose_process_names_only_existing_event_codes(mcp_client, connector):
+    types = json.loads((await mcp_client.read_resource(f"trueconnector://{connector}/audit/types")).contents[0].text)
+
+    named = {code for codes in FAILURE_EVENTS.values() for code in codes}
+
+    assert named <= {t["code"] for t in types}, named - {t["code"] for t in types}

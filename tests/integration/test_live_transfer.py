@@ -205,4 +205,8 @@ async def test_a_failed_data_move_is_reported(call, manual_transfer):
 
         # TrueConnector itself reports nothing: the transfer just stays STARTED without data.
         assert (waited["outcome"], waited["state"], waited["object"]["downloaded"]) == ("failed", "STARTED", False)
-        assert "connector logs" in waited["hint"]
+        assert f'details.consumerPid is "{waited["object"]["consumerPid"]}"' in waited["hint"]
+        # The reason is only in the audit log, matched to the transfer by its consumerPid.
+        failures = await call("list_audit_events", event_type=["TRANSFER_FAILED"], size=20, connector="a")
+        [event] = [e for e in failures["items"] if e["details"]["consumerPid"] == waited["object"]["consumerPid"]]
+        assert "Failed to get stream" in event["details"]["errorMessage"]
