@@ -176,3 +176,56 @@ async def test_publish_on_b_and_discover_from_a(call, mcp_client, source_url):
     assert dataset["@id"] not in [d["id"] for d in remote["datasets"]]
     for tool, id in [("get_dataset", dataset["@id"]), ("get_distribution", distribution["@id"])]:
         assert (await mcp_client.call_tool(tool, {"id": id, "connector": "b"})).is_error
+
+
+async def test_unpublish_keeps_what_another_dataset_still_uses(call, mcp_client, source_url):
+    offer = {"action": "USE", "constraint": [{"leftOperand": "COUNT", "operator": "LTEQ", "rightOperand": "3"}]}
+    first = await call(
+        "publish_dataset",
+        title="mcp unpublish 1",
+        description="d",
+        offers=[offer],
+        external_url=source_url,
+        connector="b",
+    )
+    [dist] = first["distribution"]
+    service = dist["accessService"]["@id"]
+    published = [first["@id"]]
+    try:
+        second = await call(
+            "create_dataset",
+            title="mcp unpublish 2",
+            description="d",
+            distribution_ids=[dist["@id"]],
+            offers=[offer],
+            external_url=source_url,
+            connector="b",
+        )
+        published.append(second["@id"])
+
+        kept = await call("unpublish_dataset", id=first["@id"], connector="b")
+
+        assert [(p["kind"], p["id"]) for p in kept["deleted"]] == [("dataset", first["@id"])]
+        assert [(p["kind"], p["id"]) for p in kept["kept"]] == [
+            ("distribution", dist["@id"]),
+            ("data_service", service),
+        ]
+        remote = await call("browse_remote_catalog", peer="b", connector="a")
+        [seen] = [d for d in remote["datasets"] if d["id"] == second["@id"]]
+        assert seen["formats"] == ["HttpData-PULL"]  # its distribution survived
+        assert first["@id"] not in [d["id"] for d in remote["datasets"]]
+
+        gone = await call("unpublish_dataset", id=second["@id"], connector="b")
+
+        assert [(p["kind"], p["id"]) for p in gone["deleted"]] == [
+            ("dataset", second["@id"]),
+            ("distribution", dist["@id"]),
+            ("data_service", service),
+        ]
+        assert gone["kept"] == []
+        for tool, id in (("get_distribution", dist["@id"]), ("get_data_service", service)):
+            result = await mcp_client.call_tool(tool, {"id": id, "connector": "b"})
+            assert result.is_error and "not found" in result.content[0].text, tool
+    finally:  # after a failure: whatever is left (a repeat only answers "not found")
+        for id in reversed(published):
+            await mcp_client.call_tool("unpublish_dataset", {"id": id, "connector": "b"})

@@ -67,7 +67,8 @@ async def test_every_tool_declares_its_effect():
     repeatable = {f"update_{kind}" for kind in kinds} | {"request_transfer"}
     repeatable |= {f"{action}_negotiation" for action in ("accept", "agree", "verify", "finalize")}
     repeatable |= {f"{action}_transfer" for action in ("start", "complete", "suspend")}
-    deletes = {f"delete_{kind}" for kind in kinds} | {"terminate_negotiation", "terminate_transfer"}
+    deletes = {f"delete_{kind}" for kind in kinds} | {"unpublish_dataset"}
+    deletes |= {"terminate_negotiation", "terminate_transfer"}
     assert set(tools) == reads | writes | repeatable | deletes
     effect = {name: (a.read_only_hint, a.destructive_hint, a.idempotent_hint) for name, a in tools.items()}
     for name in reads:
