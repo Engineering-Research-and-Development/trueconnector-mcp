@@ -9,7 +9,7 @@ from helpers import FIXTURES, FakeConnector
 from tc_mcp.config import Settings
 from tc_mcp.prompts import FAILURE_EVENTS
 from tc_mcp.server import build_server
-from tc_mcp.tools import negotiation, transfer
+from tc_mcp.tools import negotiation, transfer, wait
 
 pytestmark = pytest.mark.anyio
 
@@ -226,10 +226,39 @@ async def test_diagnose_process_rejects_an_unknown_kind():
         ("diagnose_process", {"kind": "transfer", "id": "t1", "connector": "b"}),
     ],
 )
-async def test_prompts_only_name_tools_that_exist(name, args):
+async def test_prompts_only_mention_existing_tools(name, args):
     async with mcp.Client(build_server(SETTINGS)) as client:
-        tools = {t.name for t in (await client.list_tools()).tools}
+        tools, known = await names(client)
         text = (await client.get_prompt(name, args)).messages[0].content.text
 
     called = set(re.findall(r"\b([a-z_]+)\(", text))
     assert called and called <= tools, called - tools
+    assert set(SNAKE.findall(text)) <= known, set(SNAKE.findall(text)) - known  # also names without "("
+
+
+async def test_descriptions_only_mention_existing_tools():
+    async with mcp.Client(build_server(SETTINGS)) as client:
+        _, known = await names(client)
+        texts = {t.name: f"{t.description} {json.dumps(t.input_schema)}" for t in (await client.list_tools()).tools}
+        texts |= {
+            r.uri_template: r.description or "" for r in (await client.list_resource_templates()).resource_templates
+        }
+    texts["failed move hint"] = wait.failed_move("a", "urn:uuid:p")
+
+    unknown = {where: set(SNAKE.findall(text)) - known for where, text in texts.items()}
+
+    assert {where: words for where, words in unknown.items() if words} == {}
+    assert "list_audit_events" in SNAKE.findall(texts["failed move hint"])  # the words are really read
+
+
+SNAKE = re.compile(r"\b[a-z]+(?:_[a-z]+)+\b")
+
+
+async def names(client):
+    """(tool names, every name a text may mention: tools, prompts, and the tools' parameter and result fields)."""
+    tools = (await client.list_tools()).tools
+    prompts = {p.name for p in (await client.list_prompts()).prompts}
+    fields = {
+        f for t in tools for schema in (t.input_schema, t.output_schema or {}) for f in schema.get("properties", {})
+    }
+    return {t.name for t in tools}, {t.name for t in tools} | prompts | fields

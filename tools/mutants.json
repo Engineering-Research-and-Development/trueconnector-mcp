@@ -316,5 +316,9 @@
   {"name": "drift: only management paths are compared, not other ones", "file": "tests/contract/test_drift.py", "old": "        if path.startswith(\"/api/\")\n", "new": "        if path.startswith(\"/api/v1/catalogs\")\n"},
   {"name": "snapshot: download endpoint renamed", "file": "tests/contract/management-api.json", "old": "\"/api/v1/transfers/{transferProcessId}/download\"", "new": "\"/api/v1/transfers/{transferProcessId}/fetch\""},
   {"name": "snapshot: verify endpoint renamed", "file": "tests/contract/management-api.json", "old": "\"/api/v1/negotiations/{contractNegotiationId}/verify\"", "new": "\"/api/v1/negotiations/{contractNegotiationId}/verification\""},
-  {"name": "snapshot: offer validation renamed", "file": "tests/contract/management-api.json", "old": "\"/api/v1/offers/validate\"", "new": "\"/api/v1/offers/validation\""}
+  {"name": "snapshot: offer validation renamed", "file": "tests/contract/management-api.json", "old": "\"/api/v1/offers/validate\"", "new": "\"/api/v1/offers/validation\""},
+  {"name": "diagnose names a prompt that does not exist", "file": "src/tc_mcp/prompts.py", "old": "  handle_incoming_negotiations on the provider's connector works through it.", "new": "  handle_negotiations on the provider's connector works through it."},
+  {"name": "diagnose names a tool without parentheses that does not exist", "file": "src/tc_mcp/prompts.py", "old": "(get_dataset_artifact on the provider: artifactType EXTERNAL)", "new": "(get_artifact on the provider: artifactType EXTERNAL)"},
+  {"name": "tool description names a tool that does not exist", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer `@id`, from find_transfer_for_agreement.", "new": "transfer `@id`, from find_transfer_by_agreement."},
+  {"name": "failed move hint names a tool that does not exist", "file": "src/tc_mcp/tools/wait.py", "old": "move_transfer_data can be retried once", "new": "move_data can be retried once"}
 ]
