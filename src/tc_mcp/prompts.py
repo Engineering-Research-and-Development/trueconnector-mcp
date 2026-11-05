@@ -2,6 +2,7 @@ from typing import Literal
 
 from mcp.server.mcpserver import MCPServer
 
+from tc_mcp.config import Settings
 from tc_mcp.tools import negotiation, transfer
 from tc_mcp.tools.services import Format
 
@@ -44,7 +45,7 @@ TRANSFER_CHECKS = """- STARTED, downloaded=false, downloadInProgress=false after
   (COUNT used up or DATE_TIME passed)."""
 
 
-def register(mcp: MCPServer) -> None:
+def register(mcp: MCPServer, settings: Settings) -> None:
     @mcp.prompt()
     def publish_dataset(title: str, description: str, external_url: str, connector: str | None = None) -> str:
         """Publish data that lives at a URL as a dataset in a connector's catalog."""
@@ -175,3 +176,7 @@ Other tools named below are fixes to propose to me, never to run.
    show me the hint.
 6. Summarize what changed per negotiation and transfer. A result with already_done=true means it had already
    happened. If a call fails, show me the error and continue with the next one."""
+
+    if settings.read_only:  # these drive write tools, which read-only mode removes
+        for name in ("publish_dataset", "consume_dataset", "handle_incoming_negotiations"):
+            mcp.remove_prompt(name)

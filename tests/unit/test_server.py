@@ -75,3 +75,19 @@ async def test_tool_catalog_and_annotations():
         ), name
     for name in deletes:
         assert (tools[name].read_only_hint, tools[name].destructive_hint) == (False, True), name
+
+
+async def test_read_only_mode_exposes_only_read_tools():
+    async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
+        reads = {t.name for t in (await client.list_tools()).tools if t.annotations.read_only_hint}
+
+    server = build_server(TWO_CONNECTORS.model_copy(update={"read_only": True}))
+    for _ in range(2):  # the server can be started again after its tools were removed
+        async with mcp.Client(server) as client:
+            tools = {t.name for t in (await client.list_tools()).tools}
+            prompts = {p.name for p in (await client.list_prompts()).prompts}
+            blocked = await client.call_tool("delete_dataset", {"id": "x"})
+
+        assert tools == reads
+        assert prompts == {"diagnose_process"}
+        assert blocked.is_error and "Unknown tool: delete_dataset" in blocked.content[0].text

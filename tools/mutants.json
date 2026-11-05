@@ -92,7 +92,7 @@
   {"name": "connectors resource dumps everything", "file": "src/tc_mcp/resources.py", "old": "                \"name\": c.name,\n", "new": "                **c.model_dump(mode=\"json\", exclude={\"password\", \"token\"}),\n                \"name\": c.name,\n"},
   {"name": "dataset resource reads the wrong path", "file": "src/tc_mcp/resources.py", "old": "f\"/api/v1/datasets/{seg(id)}\"", "new": "f\"/api/v1/catalogs\""},
   {"name": "resources not registered", "file": "src/tc_mcp/server.py", "old": "    resources.register(mcp, settings)\n", "new": ""},
-  {"name": "prompts not registered", "file": "src/tc_mcp/server.py", "old": "    prompts.register(mcp)\n", "new": ""},
+  {"name": "prompts not registered", "file": "src/tc_mcp/server.py", "old": "    prompts.register(mcp, settings)\n", "new": ""},
   {"name": "prompt ignores connector", "file": "src/tc_mcp/prompts.py", "old": "if connector else \"\"\n        return f\"\"\"Publish", "new": "if False else \"\"\n        return f\"\"\"Publish"},
   {"name": "unconstrained permission allowed", "file": "src/tc_mcp/tools/__init__.py", "old": "constraint: list[Constraint] = Field(min_length=1)", "new": "constraint: list[Constraint] = []"},
   {"name": "publish: no rollback", "file": "src/tc_mcp/tools/datasets.py", "old": "for path in reversed(created):", "new": "for path in []:"},
@@ -282,5 +282,10 @@
   {"name": "diagnose forgets the provider-started limit", "file": "src/tc_mcp/prompts.py", "old": "- A provider record without callbackAddress was started by the provider: TrueConnector cannot complete such a\n", "new": "- A provider record may lack callbackAddress: TrueConnector cannot complete such a\n"},
   {"name": "diagnose connector optional", "file": "src/tc_mcp/prompts.py", "old": "def diagnose_process(kind: Literal[\"negotiation\", \"transfer\"], id: str, connector: str) -> str:", "new": "def diagnose_process(kind: Literal[\"negotiation\", \"transfer\"], id: str, connector: str = \"a\") -> str:"},
   {"name": "hint names another connector", "file": "src/tc_mcp/tools/wait.py", "old": "hint = failed_move(client.connector.name, record[\"consumerPid\"])", "new": "hint = failed_move(\"b\", record[\"consumerPid\"])"},
-  {"name": "hint names the transfer id instead of the consumerPid", "file": "src/tc_mcp/tools/wait.py", "old": "hint = failed_move(client.connector.name, record[\"consumerPid\"])", "new": "hint = failed_move(client.connector.name, record[\"@id\"])"}
+  {"name": "hint names the transfer id instead of the consumerPid", "file": "src/tc_mcp/tools/wait.py", "old": "hint = failed_move(client.connector.name, record[\"consumerPid\"])", "new": "hint = failed_move(client.connector.name, record[\"@id\"])"},
+  {"name": "read-only mode keeps every tool", "file": "src/tc_mcp/server.py", "old": "        if settings.read_only:\n            for tool in await server.list_tools():", "new": "        if False:\n            for tool in await server.list_tools():"},
+  {"name": "read-only mode always on", "file": "src/tc_mcp/server.py", "old": "        if settings.read_only:\n            for tool in await server.list_tools():", "new": "        if True:\n            for tool in await server.list_tools():"},
+  {"name": "read-only mode removes only destructive tools", "file": "src/tc_mcp/server.py", "old": "if not (tool.annotations and tool.annotations.read_only_hint):", "new": "if tool.annotations and tool.annotations.destructive_hint:"},
+  {"name": "read-only mode keeps the write prompts", "file": "src/tc_mcp/prompts.py", "old": "    if settings.read_only:  # these drive", "new": "    if False:  # these drive"},
+  {"name": "read-only mode keeps one write prompt", "file": "src/tc_mcp/prompts.py", "old": "(\"publish_dataset\", \"consume_dataset\", \"handle_incoming_negotiations\")", "new": "(\"publish_dataset\", \"consume_dataset\")"}
 ]

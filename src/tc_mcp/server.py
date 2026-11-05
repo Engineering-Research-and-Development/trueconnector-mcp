@@ -1,5 +1,5 @@
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import httpx2
 from mcp.server.mcpserver import MCPServer
@@ -12,7 +12,11 @@ from tc_mcp.tools import catalog, datasets, negotiation, ops, services, transfer
 
 def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None = None) -> MCPServer:
     @contextlib.asynccontextmanager
-    async def lifespan(_: MCPServer) -> AsyncIterator[Registry]:
+    async def lifespan(server: MCPServer) -> AsyncGenerator[Registry]:
+        if settings.read_only:
+            for tool in await server.list_tools():
+                if not (tool.annotations and tool.annotations.read_only_hint):
+                    server.remove_tool(tool.name)
         registry = Registry(settings, transport)
         try:
             yield registry
@@ -28,5 +32,5 @@ def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None
     transfer.register(mcp)
     wait.register(mcp)
     resources.register(mcp, settings)
-    prompts.register(mcp)
+    prompts.register(mcp, settings)
     return mcp
