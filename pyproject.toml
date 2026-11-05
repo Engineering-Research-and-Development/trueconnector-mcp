@@ -1,7 +1,7 @@
 [project]
 name = "tc-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP server for TrueConnector dataspace connectors"
 authors = [
     { name = "looMl", email = "landolfo.l@live.com" }
 ]
