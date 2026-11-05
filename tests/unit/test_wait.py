@@ -67,7 +67,8 @@ async def test_times_out_with_the_last_state_seen():
         result = await wait(fake, states=["FINALIZED"], timeout_s=0.6, interval_s=0.5)
 
     assert (result.structured_content["outcome"], result.structured_content["state"]) == ("timeout", "REQUESTED")
-    assert len(polled_at) == 3  # at 0 s, 0.5 s and the deadline
+    # At 0 s, 0.5 s and the deadline; a 4th when the last sleep ends a clock tick early (~16 ms on Windows).
+    assert len(polled_at) in (3, 4)
     assert polled_at[-1] - polled_at[0] < 0.9  # the last sleep is cut short at the deadline (else 1.0 s)
 
 
