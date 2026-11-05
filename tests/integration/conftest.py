@@ -96,7 +96,7 @@ def automation_off(flag: str) -> Iterator[None]:
 async def client() -> AsyncIterator[TCClient]:
     """A TCClient for connector a, logged out and closed after the test."""
     settings = stack_settings()
-    client = TCClient(settings.connectors[0], settings.timeout_s)
+    client = TCClient(settings.connectors[0], settings.timeout_s, max_concurrency=settings.max_concurrency)
     yield client
     await client.aclose()
 

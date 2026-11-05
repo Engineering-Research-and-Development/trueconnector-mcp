@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import re
 import time
 from typing import Any
@@ -13,6 +14,7 @@ from tc_mcp.config import Connector, Settings
 _SAME_STATE = re.compile(r"(\w+) state can not transition to \1\b")
 _NOT_FOUND = re.compile(r"\bnot found\.?$")
 _EXPIRY_SKEW_S = 30
+log = logging.getLogger(__name__)
 
 
 class Rejected(ToolError):
@@ -32,13 +34,21 @@ class AlreadyInState(Rejected):
 
 
 class TCClient:
-    def __init__(self, connector: Connector, timeout_s: float, transport: httpx2.AsyncBaseTransport | None = None):
+    def __init__(
+        self,
+        connector: Connector,
+        timeout_s: float,
+        transport: httpx2.AsyncBaseTransport | None = None,
+        *,
+        max_concurrency: int,
+    ):
         self.connector = connector
         self._http = httpx2.AsyncClient(base_url=connector.base_url, timeout=timeout_s, transport=transport)
         self._access = connector.token.get_secret_value() if connector.token else None
         self._refresh: str | None = None
         self._expires_at = 0.0
         self._lock = anyio.Lock()
+        self._limiter = anyio.CapacityLimiter(max_concurrency)
 
     async def request(self, method: str, path: str, *, auth: bool = True, **kwargs: Any) -> Any:
         where = f"{self.connector.name} {method} {path}"
@@ -56,14 +66,25 @@ class TCClient:
 
     async def _send(self, method: str, path: str, token: str | None, where: str, **kwargs: Any) -> httpx2.Response:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
-        try:
-            return await self._http.request(method, path, headers=headers, **kwargs)
-        except httpx2.TimeoutException as e:
-            raise ToolError(
-                f"{where}: timed out; it may still have been applied, check the state before retrying"
-            ) from e
-        except httpx2.TransportError as e:
-            raise ToolError(f"{where}: connector unreachable at {self.connector.base_url} ({e!r})") from e
+        # Only the send holds a slot: a request renewing its token inside the limit would wait on itself.
+        async with self._limiter:
+            started, outcome = time.monotonic(), "failed"
+            try:
+                response = await self._http.request(method, path, headers=headers, **kwargs)
+                outcome = str(response.status_code)
+                return response
+            except httpx2.TimeoutException as e:
+                outcome = "timeout"
+                raise ToolError(
+                    f"{where}: timed out; it may still have been applied, check the state before retrying"
+                ) from e
+            except httpx2.TransportError as e:
+                outcome = "unreachable"
+                raise ToolError(f"{where}: connector unreachable at {self.connector.base_url} ({e!r})") from e
+            finally:
+                log.info(
+                    "%s %s %s %s %dms", self.connector.name, method, path, outcome, (time.monotonic() - started) * 1000
+                )
 
     async def aclose(self) -> None:
         if self._refresh is not None:
@@ -102,7 +123,10 @@ class Registry:
     """One TCClient per configured connector; `connector` may be omitted only when there is exactly one."""
 
     def __init__(self, settings: Settings, transport: httpx2.AsyncBaseTransport | None = None):
-        self._clients = {c.name: TCClient(c, settings.timeout_s, transport) for c in settings.connectors}
+        self._clients = {
+            c.name: TCClient(c, settings.timeout_s, transport, max_concurrency=settings.max_concurrency)
+            for c in settings.connectors
+        }
         self.moves_started: set[tuple[str, str]] = set()
         # Downloads dataset sources for store="copy"; never sends connector credentials.
         self.http = httpx2.AsyncClient(timeout=settings.timeout_s, transport=transport, follow_redirects=True)

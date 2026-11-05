@@ -297,5 +297,15 @@
   {"name": "create_catalog marked repeatable", "file": "src/tc_mcp/tools/catalog.py", "old": "mcp.add_tool(create_catalog, annotations=WRITE)", "new": "mcp.add_tool(create_catalog, annotations=REPEATABLE)"},
   {"name": "update_catalog not repeatable", "file": "src/tc_mcp/tools/catalog.py", "old": "mcp.add_tool(update_catalog, annotations=REPEATABLE)", "new": "mcp.add_tool(update_catalog, annotations=WRITE)"},
   {"name": "update_dataset not repeatable", "file": "src/tc_mcp/tools/datasets.py", "old": "mcp.add_tool(update_dataset, annotations=REPEATABLE)", "new": "mcp.add_tool(update_dataset, annotations=WRITE)"},
-  {"name": "service and distribution updates not repeatable", "file": "src/tc_mcp/tools/services.py", "old": "        mcp.add_tool(update, annotations=REPEATABLE)", "new": "        mcp.add_tool(update, annotations=WRITE)"}
+  {"name": "service and distribution updates not repeatable", "file": "src/tc_mcp/tools/services.py", "old": "        mcp.add_tool(update, annotations=REPEATABLE)", "new": "        mcp.add_tool(update, annotations=WRITE)"},
+  {"name": "no concurrency limit", "file": "src/tc_mcp/client.py", "old": "        async with self._limiter:\n", "new": "        async with contextlib.nullcontext():\n"},
+  {"name": "limit one too high", "file": "src/tc_mcp/client.py", "old": "self._limiter = anyio.CapacityLimiter(max_concurrency)", "new": "self._limiter = anyio.CapacityLimiter(max_concurrency + 1)"},
+  {"name": "one limit shared by all connectors", "file": "src/tc_mcp/client.py", "old": "self._limiter = anyio.CapacityLimiter(max_concurrency)", "new": "self._limiter = TCClient.__dict__.get(\"shared\") or type.__setattr__(TCClient, \"shared\", anyio.CapacityLimiter(max_concurrency)) or TCClient.shared  # type: ignore[attr-defined]"},
+  {"name": "log line has the full URL", "file": "src/tc_mcp/client.py", "old": "\"%s %s %s %s %dms\", self.connector.name, method, path, outcome,", "new": "\"%s %s %s %s %dms\", self.connector.name, method, f\"{self._http.base_url}{path}\", outcome,"},
+  {"name": "log line has the request body", "file": "src/tc_mcp/client.py", "old": "\"%s %s %s %s %dms\", self.connector.name, method, path, outcome,", "new": "\"%s %s %s %s %dms\", self.connector.name, method, f\"{path} {kwargs}\", outcome,"},
+  {"name": "log line has the token", "file": "src/tc_mcp/client.py", "old": "\"%s %s %s %s %dms\", self.connector.name, method, path, outcome,", "new": "\"%s %s %s %s %dms\", self.connector.name, method, f\"{path} {headers}\", outcome,"},
+  {"name": "no status in the log line", "file": "src/tc_mcp/client.py", "old": "                outcome = str(response.status_code)\n", "new": ""},
+  {"name": "timeout logged as failed", "file": "src/tc_mcp/client.py", "old": "                outcome = \"timeout\"\n", "new": ""},
+  {"name": "unreachable logged as failed", "file": "src/tc_mcp/client.py", "old": "                outcome = \"unreachable\"\n", "new": ""},
+  {"name": "httpx2 request lines left on", "file": "src/tc_mcp/server.py", "old": "    logging.getLogger(\"httpx2\").setLevel(logging.WARNING)\n", "new": ""}
 ]

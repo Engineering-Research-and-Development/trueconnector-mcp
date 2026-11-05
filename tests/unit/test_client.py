@@ -1,9 +1,11 @@
 import json
+import logging
+from collections import Counter
 
 import anyio
 import httpx2
 import pytest
-from helpers import FIXTURES, FakeConnector, live, login_response, make_client
+from helpers import FIXTURES, TWO_CONNECTORS, FakeConnector, live, login_response, make_client
 from mcp.server.mcpserver.exceptions import ToolError
 
 from tc_mcp.client import AlreadyInState, Registry, Rejected, TCClient, _error, _unwrap
@@ -146,20 +148,23 @@ def test_illegal_transition_is_a_plain_rejection():
 
 
 @pytest.mark.parametrize(
-    ("exc", "expected"),
+    ("exc", "expected", "logged"),
     [
-        (httpx2.ConnectError("refused"), r"^b POST /x: connector unreachable at http://tc-b"),
-        (httpx2.ReadTimeout("slow"), r"^b POST /x: timed out; it may still have been applied"),
+        (httpx2.ConnectError("refused"), r"^b POST /x: connector unreachable at http://tc-b", "unreachable"),
+        (httpx2.ReadTimeout("slow"), r"^b POST /x: timed out; it may still have been applied", "timeout"),
     ],
 )
-async def test_unreachable_connector(exc, expected):
+async def test_unreachable_connector(exc, expected, logged, caplog):
     def down(request):
         raise exc
 
-    client = TCClient(Connector(name="b", base_url="http://tc-b"), timeout_s=5, transport=httpx2.MockTransport(down))
+    connector = Connector(name="b", base_url="http://tc-b")
+    client = TCClient(connector, timeout_s=5, transport=httpx2.MockTransport(down), max_concurrency=4)
 
-    with pytest.raises(ToolError, match=expected):
+    with caplog.at_level(logging.INFO, logger="tc_mcp.client"), pytest.raises(ToolError, match=expected):
         await client.request("POST", "/x")
+
+    assert [r.getMessage().rsplit(" ", 1)[0] for r in caplog.records] == [f"b POST /x {logged}"]
 
 
 LOGIN, REFRESH, LOGOUT, CATALOGS = (
@@ -374,3 +379,37 @@ def test_a_spring_problem_detail_is_reported_with_its_detail():
     assert (
         str(_error(415, body, "a POST /x")) == "a POST /x: unexpected HTTP 415: Content-Type 'null' is not supported."
     )
+
+
+async def test_concurrency_is_limited_per_connector():
+    in_flight, peak, release = Counter[str](), Counter[str](), anyio.Event()
+
+    async def held(request):
+        host = request.url.host
+        in_flight[host] += 1
+        peak[host] = max(peak[host], in_flight[host])
+        await release.wait()
+        in_flight[host] -= 1
+        return httpx2.Response(200, json={})
+
+    registry = Registry(TWO_CONNECTORS.model_copy(update={"max_concurrency": 2}), httpx2.MockTransport(held))
+    async with anyio.create_task_group() as tg:
+        for name in ["a"] * 4 + ["b"] * 4:  # all of a's first: b's calls must not queue behind them
+            tg.start_soon(registry.get(name).request, "GET", "/x")
+        with anyio.fail_after(2):  # both reach their limit at once: one connector's calls never wait on the other's
+            while in_flight.total() < 4:
+                await anyio.sleep(0.01)
+        await anyio.sleep(0.05)  # room for a call past the limit to arrive
+        release.set()
+    await registry.aclose()
+
+    assert peak == {"tc-a": 2, "tc-b": 2}
+
+
+async def test_a_request_that_logs_in_needs_only_one_slot():
+    fake = FakeConnector({LOGIN: lambda r: login_response("A1", "R1"), CATALOGS: "envelope_data"})
+    connector = Connector(name="a", base_url="http://tc", **CREDENTIALS)
+    client = TCClient(connector, timeout_s=5, transport=httpx2.MockTransport(fake), max_concurrency=1)
+
+    with anyio.fail_after(2):
+        await client.request(*CATALOGS)

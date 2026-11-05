@@ -1,9 +1,11 @@
 import json
+import logging
+import re
 
 import httpx2
 import mcp
 import pytest
-from helpers import FIXTURES, TWO_CONNECTORS, FakeConnector
+from helpers import FIXTURES, TWO_CONNECTORS, FakeConnector, login_response
 
 from tc_mcp.config import Settings
 from tc_mcp.server import build_server
@@ -92,3 +94,33 @@ async def test_read_only_mode_exposes_only_read_tools():
         assert tools == reads
         assert prompts == {"diagnose_process"}
         assert blocked.is_error and "Unknown tool: delete_dataset" in blocked.content[0].text
+
+
+async def test_logs_calls_without_secrets_or_bodies(caplog):
+    fake = FakeConnector(
+        {
+            ("POST", "/api/v1/auth/login"): lambda r: login_response("ACCESS-SECRET", "REFRESH-SECRET"),
+            ("POST", "/api/v1/catalogs"): "envelope_data",
+            ("POST", "/api/v1/auth/logout"): lambda r: httpx2.Response(200),
+        }
+    )
+    settings = Settings(
+        _env_file=None,
+        connectors=[{"name": "a", "base_url": "http://tc", "email": "admin@mail.com", "password": "PASSWORD-SECRET"}],
+    )
+
+    with caplog.at_level(logging.INFO):
+        async with mcp.Client(build_server(settings, httpx2.MockTransport(fake))) as client:
+            result = await client.call_tool("create_catalog", {"catalog": {"title": "BODY-SECRET"}})
+
+    assert not result.is_error, result.content
+    calls = [r.getMessage().rsplit(" ", 1) for r in caplog.records if r.name == "tc_mcp.client"]
+    assert [line for line, _ in calls] == [
+        "a POST /api/v1/auth/login 200",
+        "a POST /api/v1/catalogs 200",
+        "a POST /api/v1/auth/logout 200",
+    ]
+    assert all(re.fullmatch(r"\d+ms", ms) for _, ms in calls)
+    assert not [r for r in caplog.records if r.name.startswith("httpx2")]  # it would log full URLs
+    for secret in ("PASSWORD-SECRET", "ACCESS-SECRET", "REFRESH-SECRET", "BODY-SECRET"):
+        assert secret not in caplog.text, secret

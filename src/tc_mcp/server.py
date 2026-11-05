@@ -1,4 +1,5 @@
 import contextlib
+import logging
 from collections.abc import AsyncGenerator
 
 import httpx2
@@ -24,6 +25,7 @@ def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None
             await registry.aclose()
 
     mcp = MCPServer("trueconnector", lifespan=lifespan)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
     ops.register(mcp)
     catalog.register(mcp)
     services.register(mcp)
