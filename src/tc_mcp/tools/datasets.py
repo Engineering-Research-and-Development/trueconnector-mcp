@@ -10,7 +10,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
 from tc_mcp.client import Registry, TCClient
-from tc_mcp.tools import READ_ONLY, WRITE, Permission, fields, register_readers, registry, seg
+from tc_mcp.tools import READ_ONLY, REPEATABLE, WRITE, Permission, fields, register_readers, registry, seg
 from tc_mcp.tools.services import Format
 
 HttpUrl = Annotated[str, Field(pattern=r"^https?://\S+$")]
@@ -187,8 +187,9 @@ async def get_artifacts(ctx: Context, artifact_id: str | None = None, connector:
 
 
 def register(mcp: MCPServer) -> None:
-    for write in (create_dataset, update_dataset, publish_dataset):
+    for write in (create_dataset, publish_dataset):
         mcp.add_tool(write, annotations=WRITE)
+    mcp.add_tool(update_dataset, annotations=REPEATABLE)
     for read in (get_dataset_formats, get_dataset_artifact, get_artifacts):
         mcp.add_tool(read, annotations=READ_ONLY)
     register_readers(mcp, "dataset", "datasets", "/api/v1/datasets")

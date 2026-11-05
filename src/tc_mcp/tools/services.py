@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
 
-from tc_mcp.tools import WRITE, fields, register_readers, registry, seg
+from tc_mcp.tools import REPEATABLE, WRITE, fields, register_readers, registry, seg
 
 # Transfer formats TrueConnector implements over HTTP (it.eng.datatransfer.model.DataTransferFormat).
 Format = Literal["HttpData-PULL", "HttpData-PUSH"]
@@ -74,7 +74,9 @@ async def update_distribution(
 
 
 def register(mcp: MCPServer) -> None:
-    for write in (create_data_service, update_data_service, create_distribution, update_distribution):
+    for write in (create_data_service, create_distribution):
         mcp.add_tool(write, annotations=WRITE)
+    for update in (update_data_service, update_distribution):
+        mcp.add_tool(update, annotations=REPEATABLE)
     register_readers(mcp, "distribution", "distributions", "/api/v1/distributions")
     register_readers(mcp, "data_service", "data_services", "/api/v1/dataservices")

@@ -37,7 +37,7 @@ async def test_dspace_version_over_mcp():
     assert transport.closed  # the lifespan closed the registry on shutdown
 
 
-async def test_tool_catalog_and_annotations():
+async def test_every_tool_declares_its_effect():
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         tools = {t.name: t.annotations for t in (await client.list_tools()).tools}
 
@@ -59,22 +59,23 @@ async def test_tool_catalog_and_annotations():
     reads |= {f"list_{kind}" for kind in ("datasets", "distributions", "data_services")}
     reads |= {f"get_{kind}" for kind in ("dataset", "distribution", "data_service")}
     kinds = ("catalog", "data_service", "distribution", "dataset")
-    writes = {f"{verb}_{kind}" for verb in ("create", "update") for kind in kinds} | {"publish_dataset"}
-    writes |= {"request_contract", "send_counteroffer", "request_transfer", "move_transfer_data"}
-    writes |= {f"{action}_negotiation" for action in ("accept", "agree", "verify", "finalize")}
-    writes |= {f"{action}_transfer" for action in ("start", "complete", "suspend")}
+    # A repeat would create or send something again.
+    writes = {f"create_{kind}" for kind in kinds} | {"publish_dataset", "request_contract", "send_counteroffer"}
+    writes |= {"move_transfer_data"}  # a repeat after a failed move starts a new one
+    repeatable = {f"update_{kind}" for kind in kinds} | {"request_transfer"}
+    repeatable |= {f"{action}_negotiation" for action in ("accept", "agree", "verify", "finalize")}
+    repeatable |= {f"{action}_transfer" for action in ("start", "complete", "suspend")}
     deletes = {f"delete_{kind}" for kind in kinds} | {"terminate_negotiation", "terminate_transfer"}
-    assert set(tools) == reads | writes | deletes
+    assert set(tools) == reads | writes | repeatable | deletes
+    effect = {name: (a.read_only_hint, a.destructive_hint, a.idempotent_hint) for name, a in tools.items()}
     for name in reads:
-        assert tools[name].read_only_hint, name
+        assert effect[name] == (True, None, None), name
     for name in writes:
-        assert (tools[name].read_only_hint, tools[name].destructive_hint, tools[name].idempotent_hint) == (
-            False,
-            False,
-            False,
-        ), name
+        assert effect[name] == (False, False, False), name
+    for name in repeatable:
+        assert effect[name] == (False, False, True), name
     for name in deletes:
-        assert (tools[name].read_only_hint, tools[name].destructive_hint) == (False, True), name
+        assert effect[name] == (False, True, True), name
 
 
 async def test_read_only_mode_exposes_only_read_tools():

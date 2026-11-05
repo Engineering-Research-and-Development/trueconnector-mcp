@@ -41,16 +41,19 @@ async def test_catalog_create_update_delete(call, mcp_client):
         connector="b",
     )
     try:
-        updated = await call("update_catalog", id=created["@id"], catalog={"title": "mcp test v2"}, connector="b")
-        assert (updated["title"], updated["participantId"], updated["keyword"]) == (
-            "mcp test v2",
-            "urn:mcp-test",
-            ["k"],
-        )
+        for _ in range(2):  # a repeat sets the same values
+            updated = await call("update_catalog", id=created["@id"], catalog={"title": "mcp test v2"}, connector="b")
+            assert (updated["title"], updated["participantId"], updated["keyword"]) == (
+                "mcp test v2",
+                "urn:mcp-test",
+                ["k"],
+            )
     finally:
         await call("delete_catalog", id=created["@id"], connector="b")
     gone = await mcp_client.call_tool("get_catalog", {"id": created["@id"], "connector": "b"})
     assert gone.is_error and "not found" in gone.content[0].text
+    again = await mcp_client.call_tool("delete_catalog", {"id": created["@id"], "connector": "b"})
+    assert again.is_error and "not found" in again.content[0].text
 
 
 async def test_data_service_and_distribution_create_update_delete(call):

@@ -9,6 +9,7 @@ from tc_mcp.client import Rejected
 from tc_mcp.tools import (
     DESTRUCTIVE,
     READ_ONLY,
+    REPEATABLE,
     WRITE,
     Page,
     PageNumber,
@@ -214,7 +215,7 @@ def register_transition(mcp: MCPServer, action: str, role: Role | None, descript
         run,
         name=f"{action}_negotiation",
         description=f"{description} A repeated call returns already_done.\n\n{STATE_MACHINE}",
-        annotations=DESTRUCTIVE if action == "terminate" else WRITE,
+        annotations=DESTRUCTIVE if action == "terminate" else REPEATABLE,
     )
 
 

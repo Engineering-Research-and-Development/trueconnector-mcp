@@ -111,6 +111,8 @@ async def test_manual_negotiation_from_counteroffer_to_a_usable_agreement(call, 
     for action, record, connector, state in steps:
         done = await call(f"{action}_negotiation", negotiation_id=record["@id"], connector=connector)
         assert (done["already_done"], done["state"]) == (False, state), action
+        again = await call(f"{action}_negotiation", negotiation_id=record["@id"], connector=connector)
+        assert (again["already_done"], again["state"]) == (True, state), action
         if state == "AGREED":  # the agreement exists, but may not be used before FINALIZED
             early = await call("enforce_agreement", agreement_id=done["negotiation"]["agreement"]["@id"], connector="b")
             assert early["allowed"] is False, early
@@ -120,8 +122,6 @@ async def test_manual_negotiation_from_counteroffer_to_a_usable_agreement(call, 
     assert mine["agreement"]["permission"][0]["constraint"][0]["rightOperand"] == "3"
     enforced = await call("enforce_agreement", agreement_id=mine["agreement"]["@id"], connector="a")
     assert enforced["allowed"] is True
-    repeat = await call("finalize_negotiation", negotiation_id=theirs["@id"], connector="b")
-    assert (repeat["already_done"], repeat["state"]) == (True, "FINALIZED")
 
 
 async def test_wait_for_state_follows_an_automatic_negotiation_to_finalized(call):

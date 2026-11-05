@@ -35,6 +35,8 @@ async def test_find_and_request_a_transfer(call):
     requested = await call("request_transfer", transfer_process_id=mine["@id"], format="HttpData-PULL", connector="a")
     assert (requested["already_done"], requested["state"]) == (False, "REQUESTED")
     assert requested["transfer"]["format"] == "HttpData-PULL"
+    again = await call("request_transfer", transfer_process_id=mine["@id"], format="HttpData-PULL", connector="a")
+    assert (again["already_done"], again["state"]) == (True, "REQUESTED")
     assert (await call("get_transfer", id=mine["@id"], connector="a"))["format"] == "HttpData-PULL"
     assert (await call("get_transfer", id=theirs["@id"], connector="b"))["consumerPid"] == mine["consumerPid"]
 
@@ -75,6 +77,8 @@ async def test_manual_transfer_lifecycle(call, mcp_client, manual_transfer):
     for action, tid, connector, state in steps:
         done = await call(f"{action}_transfer", transfer_process_id=tid, connector=connector)
         assert (done["already_done"], done["state"]) == (False, state), action
+        again = await call(f"{action}_transfer", transfer_process_id=tid, connector=connector)
+        assert (again["already_done"], again["state"]) == (True, state), action
     assert (await call("get_transfer", id=mine, connector="a"))["state"] == "COMPLETED"
 
     again = await call("complete_transfer", transfer_process_id=mine, connector="a")

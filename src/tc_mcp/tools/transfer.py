@@ -9,6 +9,7 @@ from tc_mcp.client import AlreadyInState
 from tc_mcp.tools import (
     DESTRUCTIVE,
     READ_ONLY,
+    REPEATABLE,
     WRITE,
     Page,
     PageNumber,
@@ -178,7 +179,7 @@ def register_transition(mcp: MCPServer, action: str, description: str) -> None:
         run,
         name=f"{action}_transfer",
         description=f"{description} A repeated call returns already_done.\n\n{STATE_MACHINE}",
-        annotations=DESTRUCTIVE if action == "terminate" else WRITE,
+        annotations=DESTRUCTIVE if action == "terminate" else REPEATABLE,
     )
 
 
@@ -187,9 +188,9 @@ def register(mcp: MCPServer) -> None:
         mcp.add_tool(
             read, annotations=READ_ONLY, description=f"{inspect.cleandoc(read.__doc__ or '')}\n\n{STATE_MACHINE}"
         )
-    for write in (request_transfer, move_transfer_data):
+    for write, annotations in ((request_transfer, REPEATABLE), (move_transfer_data, WRITE)):
         mcp.add_tool(
-            write, annotations=WRITE, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
+            write, annotations=annotations, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
         )
     for action, description in TRANSITIONS.items():
         register_transition(mcp, action, description)
