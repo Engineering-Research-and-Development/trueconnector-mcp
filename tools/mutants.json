@@ -331,5 +331,6 @@
   {"name": "unpublish does not look at the remaining distributions", "file": "src/tc_mcp/tools/datasets.py", "old": "remaining = await client.request(\"GET\", \"/api/v1/distributions\") if services else []", "new": "remaining: list = []"},
   {"name": "unpublish leaves the dataset", "file": "src/tc_mcp/tools/datasets.py", "old": "        await client.request(\"DELETE\", f\"/api/v1/datasets/{seg(id)}\")\n", "new": ""},
   {"name": "unpublish failure hides what is already deleted", "file": "src/tc_mcp/tools/datasets.py", "old": "raise ToolError(f\"{e} (unpublish_dataset had already deleted: {done})\") from e", "new": "raise"},
-  {"name": "unpublish not destructive", "file": "src/tc_mcp/tools/datasets.py", "old": "mcp.add_tool(unpublish_dataset, annotations=DESTRUCTIVE)", "new": "mcp.add_tool(unpublish_dataset, annotations=WRITE)"}
+  {"name": "unpublish not destructive", "file": "src/tc_mcp/tools/datasets.py", "old": "mcp.add_tool(unpublish_dataset, annotations=DESTRUCTIVE)", "new": "mcp.add_tool(unpublish_dataset, annotations=WRITE)"},
+  {"name": "refresh sent raw, outside the error mapping", "file": "src/tc_mcp/client.py", "old": "                tokens = await self.request(\n                    \"POST\", \"/api/v1/auth/refresh\", auth=False, json={\"refresh_token\": self._refresh}\n                )\n", "new": "                tokens = (await self._http.post(\"/api/v1/auth/refresh\", json={\"refresh_token\": self._refresh})).json()\n"}
 ]

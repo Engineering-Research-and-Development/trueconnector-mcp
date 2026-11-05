@@ -235,6 +235,27 @@ async def test_rejected_refresh_falls_back_to_login():
     assert bearer(fake.calls(*CATALOGS)[-1]) == "Bearer A3"
 
 
+async def test_connector_down_during_refresh_is_reported_as_unreachable():
+    up = True
+
+    def login(request):
+        if not up:
+            raise httpx2.ConnectError("refused")
+        return login_response("A1", "R1", expires_in=10)
+
+    def down(request):
+        raise httpx2.ConnectError("refused")
+
+    fake = FakeConnector({LOGIN: login, REFRESH: down, CATALOGS: "envelope_data"})
+    client = make_client(fake, **CREDENTIALS)
+    await client.request(*CATALOGS)
+    up = False
+
+    with pytest.raises(ToolError, match=r"connector unreachable at http://tc"):
+        await client.request(*CATALOGS)
+    assert len(fake.calls(*REFRESH)) == 1
+
+
 async def test_login_failure_is_reported():
     # A wrong password returns the same Spring 401 body as a reused refresh token (checked live).
     fake = FakeConnector({LOGIN: "error_401_refresh_reuse", CATALOGS: "envelope_data"})
