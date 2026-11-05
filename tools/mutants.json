@@ -307,5 +307,14 @@
   {"name": "no status in the log line", "file": "src/tc_mcp/client.py", "old": "                outcome = str(response.status_code)\n", "new": ""},
   {"name": "timeout logged as failed", "file": "src/tc_mcp/client.py", "old": "                outcome = \"timeout\"\n", "new": ""},
   {"name": "unreachable logged as failed", "file": "src/tc_mcp/client.py", "old": "                outcome = \"unreachable\"\n", "new": ""},
-  {"name": "httpx2 request lines left on", "file": "src/tc_mcp/server.py", "old": "    logging.getLogger(\"httpx2\").setLevel(logging.WARNING)\n", "new": ""}
+  {"name": "httpx2 request lines left on", "file": "src/tc_mcp/server.py", "old": "    logging.getLogger(\"httpx2\").setLevel(logging.WARNING)\n", "new": ""},
+  {"name": "drift: f-string calls lose their method", "file": "tests/contract/test_drift.py", "old": "LITERAL = re.compile(r'(?:request\\(\\s*\"(GET|POST|PUT|DELETE)\",\\s*)?f?\"(/api/v1[^\"]*)\"')", "new": "LITERAL = re.compile(r'(?:request\\(\\s*\"(GET|POST|PUT|DELETE)\",\\s*)?\"(/api/v1[^\"]*)\"')"},
+  {"name": "drift: placeholders kept as written", "file": "tests/contract/test_drift.py", "old": "re.sub(r\"\\{[^}]*\\}\", \"{}\", path)", "new": "path"},
+  {"name": "drift: any segment matches", "file": "tests/contract/test_drift.py", "old": "all(s in (\"{}\", t) for s, t in zip(segments, theirs, strict=True))", "new": "all(True for s, t in zip(segments, theirs, strict=True))"},
+  {"name": "drift: a snapshot parameter matches a literal", "file": "tests/contract/test_drift.py", "old": "all(s in (\"{}\", t) for s, t in zip(segments, theirs, strict=True))", "new": "all(s in (\"{}\", t) or t.startswith(\"{\") for s, t in zip(segments, theirs, strict=True))"},
+  {"name": "drift: method ignored", "file": "tests/contract/test_drift.py", "old": "return same and want in (None, method)", "new": "return same"},
+  {"name": "drift: only management paths are compared, not other ones", "file": "tests/contract/test_drift.py", "old": "        if path.startswith(\"/api/\")\n", "new": "        if path.startswith(\"/api/v1/catalogs\")\n"},
+  {"name": "snapshot: download endpoint renamed", "file": "tests/contract/management-api.json", "old": "\"/api/v1/transfers/{transferProcessId}/download\"", "new": "\"/api/v1/transfers/{transferProcessId}/fetch\""},
+  {"name": "snapshot: verify endpoint renamed", "file": "tests/contract/management-api.json", "old": "\"/api/v1/negotiations/{contractNegotiationId}/verify\"", "new": "\"/api/v1/negotiations/{contractNegotiationId}/verification\""},
+  {"name": "snapshot: offer validation renamed", "file": "tests/contract/management-api.json", "old": "\"/api/v1/offers/validate\"", "new": "\"/api/v1/offers/validation\""}
 ]
