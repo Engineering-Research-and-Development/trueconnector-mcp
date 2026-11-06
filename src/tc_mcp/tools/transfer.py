@@ -16,6 +16,7 @@ from tc_mcp.tools import (
     PageNumber,
     PageSize,
     Role,
+    check_side,
     page_params,
     registry,
     seg,
@@ -97,11 +98,7 @@ async def request_transfer(
     client = registry(ctx).get(connector)
     path = f"/api/v1/transfers/{seg(transfer_process_id)}"
     record = await client.request("GET", path)
-    if record["role"] != "consumer":
-        raise ToolError(
-            f"request is a consumer action, but {transfer_process_id} is the {record['role']} record on connector "
-            f"'{client.connector.name}': call it on the consumer's connector with its transfer @id"
-        )
+    check_side(client, record, "consumer", transfer_process_id, "request is a consumer action", "its transfer @id")
     body = {"transferProcessId": transfer_process_id, "format": format}
     try:
         result = await client.request("POST", "/api/v1/transfers", json=body)
@@ -132,14 +129,11 @@ async def move_transfer_data(ctx: Context, transfer_process_id: str, connector: 
     record = await client.request("GET", path)
     if record.get("format") not in ("HttpData-PULL", "HttpData-PUSH"):
         raise ToolError(f"transfer {transfer_process_id} has no format yet: the consumer must request_transfer first")
-    side = "consumer" if record["format"] == "HttpData-PULL" else "provider"
+    side: Role = "consumer" if record["format"] == "HttpData-PULL" else "provider"
     # The wrong side is not refused by TrueConnector: PUSH on the consumer is a 500 "Decryption failed", and PULL on
     # the provider is accepted and copies the data into the provider's own storage.
-    if record["role"] != side:
-        raise ToolError(
-            f"{record['format']} data is moved by the {side}, but {transfer_process_id} is the {record['role']} "
-            f"record on connector '{client.connector.name}': call it on the {side}'s connector with its transfer @id"
-        )
+    what = f"{record['format']} data is moved by the {side}"
+    check_side(client, record, side, transfer_process_id, what, "its transfer @id")
     if record.get("downloaded"):
         return Move(accepted=False, message="the data is already downloaded: get_transfer_data_url gives its link")
     if record["state"] != "STARTED":

@@ -156,7 +156,7 @@
   {"name": "counteroffer roles swapped", "file": "src/tc_mcp/tools/negotiation.py", "old": "provider = negotiation[\"role\"] == \"provider\"", "new": "provider = negotiation[\"role\"] == \"consumer\""},
   {"name": "counteroffer not registered", "file": "src/tc_mcp/tools/negotiation.py", "old": "for write in (request_contract, send_counteroffer):", "new": "for write in (request_contract,):"},
   {"name": "relayed peer reason dropped", "file": "src/tc_mcp/client.py", "old": "    if isinstance(data, dict) and data.get(\"reason\"):", "new": "    if False:"},
-  {"name": "wrong side not refused", "file": "src/tc_mcp/tools/negotiation.py", "old": "if role is not None and record[\"role\"] != role:", "new": "if False:"},
+  {"name": "wrong side not refused", "file": "src/tc_mcp/tools/negotiation.py", "old": "        if role is not None:\n", "new": "        if False:\n"},
   {"name": "terminate restricted to one side", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"terminate\": (None, \"Either side:", "new": "\"terminate\": (\"provider\", \"Either side:"},
   {"name": "accept is a provider action", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"accept\": (\"consumer\",", "new": "\"accept\": (\"provider\","},
   {"name": "agree is a consumer action", "file": "src/tc_mcp/tools/negotiation.py", "old": "\"agree\": (\"provider\",", "new": "\"agree\": (\"consumer\","},
@@ -194,7 +194,7 @@
   {"name": "find ignores role", "file": "src/tc_mcp/tools/transfer.py", "old": "params = page_params(0, 100, agreement_id=agreement_id, role=role)", "new": "params = page_params(0, 100, agreement_id=agreement_id)"},
   {"name": "find takes the first of several", "file": "src/tc_mcp/tools/transfer.py", "old": "    if len(found) == 1:\n", "new": "    if len(found) >= 1:\n"},
   {"name": "find returns nothing instead of an error", "file": "src/tc_mcp/tools/transfer.py", "old": "    if not found:\n        raise ToolError(", "new": "    if not found:\n        return None\n        raise ToolError("},
-  {"name": "request from any side", "file": "src/tc_mcp/tools/transfer.py", "old": "if record[\"role\"] != \"consumer\":", "new": "if False:"},
+  {"name": "request from any side", "file": "src/tc_mcp/tools/transfer.py", "old": "check_side(client, record, \"consumer\",", "new": "check_side(client, record, record[\"role\"],"},
   {"name": "request sends a dataAddress", "file": "src/tc_mcp/tools/transfer.py", "old": "body = {\"transferProcessId\": transfer_process_id, \"format\": format}", "new": "body = {\"transferProcessId\": transfer_process_id, \"format\": format, \"dataAddress\": {}}"},
   {"name": "repeated request is an error", "file": "src/tc_mcp/tools/transfer.py", "old": "    except AlreadyInState:\n        record = await client.request(\"GET\", path)\n", "new": "    except AlreadyInState:\n        raise\n"},
   {"name": "request format accepts any string", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer_process_id: str, format: Format, connector", "new": "transfer_process_id: str, format: str, connector"},
@@ -209,8 +209,8 @@
   {"name": "suspend not registered", "file": "src/tc_mcp/tools/transfer.py", "old": "    \"suspend\": \"Either side:", "new": "    \"suspend_\": \"Either side:"},
   {"name": "transfer transitions not registered", "file": "src/tc_mcp/tools/transfer.py", "old": "        register_transition(mcp, action, description)\n", "new": "        pass\n"},
   {"name": "move without a format", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record.get(\"format\") not in (\"HttpData-PULL\", \"HttpData-PUSH\"):\n        raise", "new": "    if False:\n        raise"},
-  {"name": "move sides swapped", "file": "src/tc_mcp/tools/transfer.py", "old": "side = \"consumer\" if record[\"format\"] == \"HttpData-PULL\" else \"provider\"", "new": "side = \"provider\" if record[\"format\"] == \"HttpData-PULL\" else \"consumer\""},
-  {"name": "move from either side", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record[\"role\"] != side:\n", "new": "    if False:\n"},
+  {"name": "move sides swapped", "file": "src/tc_mcp/tools/transfer.py", "old": "side: Role = \"consumer\" if record[\"format\"] == \"HttpData-PULL\" else \"provider\"", "new": "side: Role = \"provider\" if record[\"format\"] == \"HttpData-PULL\" else \"consumer\""},
+  {"name": "move from either side", "file": "src/tc_mcp/tools/transfer.py", "old": "check_side(client, record, side,", "new": "check_side(client, record, record[\"role\"],"},
   {"name": "move ignores downloaded", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record.get(\"downloaded\"):\n", "new": "    if False:\n"},
   {"name": "move outside STARTED", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record[\"state\"] != \"STARTED\":\n", "new": "    if False:\n"},
   {"name": "move ignores a running move", "file": "src/tc_mcp/tools/transfer.py", "old": "    if record.get(\"downloadInProgress\"):\n", "new": "    if False:\n"},
@@ -332,5 +332,6 @@
   {"name": "unpublish leaves the dataset", "file": "src/tc_mcp/tools/datasets.py", "old": "        await client.request(\"DELETE\", f\"/api/v1/datasets/{seg(id)}\")\n", "new": ""},
   {"name": "unpublish failure hides what is already deleted", "file": "src/tc_mcp/tools/datasets.py", "old": "raise ToolError(f\"{e} (unpublish_dataset had already deleted: {done})\") from e", "new": "raise"},
   {"name": "unpublish not destructive", "file": "src/tc_mcp/tools/datasets.py", "old": "mcp.add_tool(unpublish_dataset, annotations=DESTRUCTIVE)", "new": "mcp.add_tool(unpublish_dataset, annotations=WRITE)"},
-  {"name": "refresh sent raw, outside the error mapping", "file": "src/tc_mcp/client.py", "old": "                tokens = await self.request(\n                    \"POST\", \"/api/v1/auth/refresh\", auth=False, json={\"refresh_token\": self._refresh}\n                )\n", "new": "                tokens = (await self._http.post(\"/api/v1/auth/refresh\", json={\"refresh_token\": self._refresh})).json()\n"}
+  {"name": "refresh sent raw, outside the error mapping", "file": "src/tc_mcp/client.py", "old": "                tokens = await self.request(\n                    \"POST\", \"/api/v1/auth/refresh\", auth=False, json={\"refresh_token\": self._refresh}\n                )\n", "new": "                tokens = (await self._http.post(\"/api/v1/auth/refresh\", json={\"refresh_token\": self._refresh})).json()\n"},
+  {"name": "check_side never refuses", "file": "src/tc_mcp/tools/__init__.py", "old": "    if record[\"role\"] != side:\n", "new": "    if False:\n"}
 ]

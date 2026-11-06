@@ -149,6 +149,10 @@ async def test_request_transfer_on_the_provider_record_is_refused_locally():
 
     assert result.is_error
     assert "request is a consumer action, but" in result.content[0].text
+    assert (
+        f"{PROVIDER_SIDE['@id']} is the provider record on connector 'b': "
+        "call it on the consumer's connector with its transfer @id"
+    ) in result.content[0].text
     assert [r.method for r in fake.requests] == ["GET"]
 
 
@@ -277,6 +281,9 @@ async def test_move_transfer_data_on_the_wrong_side_is_refused(fmt, wrong, right
 
     assert result.is_error
     assert f"{fmt} data is moved by the {right}, but {TID} is the {wrong} record" in result.content[0].text
+    assert (
+        f"record on connector 'a': call it on the {right}'s connector with its transfer @id" in result.content[0].text
+    )
     assert not fake.calls("GET", f"/api/v1/transfers/{TID}/download")
 
 

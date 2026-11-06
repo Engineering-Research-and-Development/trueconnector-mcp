@@ -82,6 +82,15 @@ async def transition(client: TCClient, path: str, action: str) -> tuple[bool, di
     return already_done, result
 
 
+def check_side(client: TCClient, record: dict[str, Any], side: Role, id: str, what: str, how: str) -> None:
+    """Refuse `record` unless it is `side`'s, naming the connector to call instead."""
+    if record["role"] != side:
+        raise ToolError(
+            f"{what}, but {id} is the {record['role']} record on connector '{client.connector.name}': "
+            f"call it on the {side}'s connector with {how}"
+        )
+
+
 class Registry:
     """One TCClient per configured connector; `connector` may be omitted only when there is exactly one."""
 
