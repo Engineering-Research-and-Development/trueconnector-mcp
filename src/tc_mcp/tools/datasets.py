@@ -181,6 +181,10 @@ async def publish_dataset(
         raise ToolError(f"{e} (publish_dataset deleted the {len(created)} object(s) it had created)") from e
 
 
+def _live(d: dict[str, Any]) -> list[dict[str, Any]]:
+    return [x for x in d.get("distribution") or [] if x]  # a deleted distribution shows up as null
+
+
 class Part(BaseModel):
     kind: Literal["dataset", "distribution", "data_service"]
     id: str
@@ -201,13 +205,11 @@ async def unpublish_dataset(ctx: Context, id: str, connector: str | None = None)
     """
     client = registry(ctx).get(connector)
     dataset = await client.request("GET", f"/api/v1/datasets/{seg(id)}")
-    others = [d for d in await client.request("GET", "/api/v1/datasets") if d["@id"] != dataset["@id"]]
+    datasets = await client.request("GET", "/api/v1/datasets")
+    # Each other dataset's id: the ids of the distributions it uses.
+    others = {d["@id"]: {x["@id"] for x in _live(d)} for d in datasets if d["@id"] != dataset["@id"]}
+    distributions = _live(dataset)
     result = Unpublished(deleted=[], kept=[])
-
-    def live(d: dict[str, Any]) -> list[dict[str, Any]]:
-        return [x for x in d.get("distribution") or [] if x]  # a deleted distribution shows up as null
-
-    distributions = live(dataset)
 
     async def delete(kind: Literal["distribution", "data_service"], path: str, part_id: str, users: list[str]) -> None:
         if users:
@@ -220,7 +222,7 @@ async def unpublish_dataset(ctx: Context, id: str, connector: str | None = None)
         await client.request("DELETE", f"/api/v1/datasets/{seg(id)}")
         result.deleted.append(Part(kind="dataset", id=dataset["@id"]))
         for dist in distributions:
-            users = [f"dataset {d['@id']}" for d in others if dist["@id"] in {x["@id"] for x in live(d)}]
+            users = [f"dataset {other}" for other, ids in others.items() if dist["@id"] in ids]
             await delete("distribution", "/api/v1/distributions", dist["@id"], users)
         services = list(dict.fromkeys(d["accessService"]["@id"] for d in distributions if d.get("accessService")))
         remaining = await client.request("GET", "/api/v1/distributions") if services else []

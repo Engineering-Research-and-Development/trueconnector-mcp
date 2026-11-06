@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -122,7 +122,7 @@ async def move_transfer_data(ctx: Context, transfer_process_id: str, connector: 
     client = reg.get(connector)
     path = f"/api/v1/transfers/{seg(transfer_process_id)}"
     record = await client.request("GET", path)
-    if record.get("format") not in ("HttpData-PULL", "HttpData-PUSH"):
+    if record.get("format") not in get_args(Format):
         raise ToolError(f"transfer {transfer_process_id} has no format yet: the consumer must request_transfer first")
     side: Role = "consumer" if record["format"] == "HttpData-PULL" else "provider"
     # The wrong side is not refused by TrueConnector: PUSH on the consumer is a 500 "Decryption failed", and PULL on
