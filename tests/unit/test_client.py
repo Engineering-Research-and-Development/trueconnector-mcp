@@ -8,8 +8,9 @@ import pytest
 from helpers import FIXTURES, TWO_CONNECTORS, FakeConnector, live, login_response, make_client
 from mcp.server.mcpserver.exceptions import ToolError
 
-from tc_mcp.client import AlreadyInState, Registry, Rejected, TCClient, _error, _unwrap
+from tc_mcp.client import AlreadyInState, Rejected, TCClient, _error, _unwrap
 from tc_mcp.config import Connector, Settings
+from tc_mcp.tools import Registry
 
 pytestmark = pytest.mark.anyio
 

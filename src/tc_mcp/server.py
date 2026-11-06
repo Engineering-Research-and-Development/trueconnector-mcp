@@ -6,9 +6,8 @@ import httpx2
 from mcp.server.mcpserver import MCPServer
 
 from tc_mcp import prompts, resources
-from tc_mcp.client import Registry
 from tc_mcp.config import Settings
-from tc_mcp.tools import catalog, datasets, negotiation, ops, services, transfer, wait
+from tc_mcp.tools import Registry, catalog, datasets, negotiation, ops, services, transfer, wait
 
 
 def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None = None) -> MCPServer:
