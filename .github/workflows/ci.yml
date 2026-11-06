@@ -37,4 +37,4 @@ jobs:
           version: "0.9.5"
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run python tools/mutate.py . tools/mutants.json
+      - run: uv run python scripts/mutate.py . scripts/mutants.json

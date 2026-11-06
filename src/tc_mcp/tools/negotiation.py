@@ -6,7 +6,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
 from tc_mcp.client import Rejected
-from tc_mcp.tools import (
+from tc_mcp.registry import registry
+from tc_mcp.tools.common import (
     DESTRUCTIVE,
     READ_ONLY,
     REPEATABLE,
@@ -16,8 +17,8 @@ from tc_mcp.tools import (
     PageSize,
     Permission,
     Role,
+    check_side,
     page_params,
-    registry,
     seg,
     transition,
 )
@@ -203,12 +204,11 @@ def register_transition(mcp: MCPServer, action: str, role: Role | None, descript
         path = f"/api/v1/negotiations/{seg(negotiation_id)}"
         record = await client.request("GET", path)
         # A wrong-side call fails misleadingly (agree on a consumer record is a 500 about a missing assignee).
-        if role is not None and record["role"] != role:
-            raise ToolError(
-                f"{action} is a {role} action, but {negotiation_id} is the {record['role']} record on connector "
-                f"'{client.connector.name}': call it on the {role}'s connector with find_counterpart_negotiation's @id"
-            )
-        already_done, result = await transition(client, path, action)  # verify and finalize answer without the record
+        if role is not None:
+            how = "find_counterpart_negotiation's @id"
+            check_side(client, record, role, negotiation_id, f"{action} is a {role} action", how)
+        # verify and finalize answer without the record
+        already_done, result = await transition(client, path, client.request("PUT", f"{path}/{action}"))
         return Transition(already_done=already_done, state=result["state"], negotiation=result)
 
     mcp.add_tool(

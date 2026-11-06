@@ -1,6 +1,6 @@
 """Mutation check: apply each (file, old, new) mutant, run the unit tests, expect a failure.
 
-Usage: uv run python tools/mutate.py <repo> <mutants.json> [workers]
+Usage: uv run python scripts/mutate.py <repo> <mutants.json> [workers]
 
 Mutants run in parallel, each worker in its own temporary copy of src/ and tests/, so the working tree is never
 modified (an interrupted run can't leave a mutant behind).

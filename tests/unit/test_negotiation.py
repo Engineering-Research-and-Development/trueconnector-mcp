@@ -436,6 +436,7 @@ async def test_transition_on_the_wrong_side_is_refused_locally(action, side, wro
 
     assert result.is_error
     assert f"{action} is a {side} action, but {NEG_ID} is the {wrong} record on connector 'a'" in result.content[0].text
+    assert f"'a': call it on the {side}'s connector with find_counterpart_negotiation's @id" in result.content[0].text
     assert [r.method for r in fake.requests] == ["GET"]
 
 

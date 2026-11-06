@@ -1,0 +1,6 @@
+# Allowlist: the build context holds only what the Dockerfile copies, so .env and local files never leave the machine.
+*
+!pyproject.toml
+!uv.lock
+!src
+**/__pycache__

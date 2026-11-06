@@ -5,7 +5,7 @@ import pytest
 from helpers import FIXTURES, FakeConnector, call
 from mcp.server.mcpserver import MCPServer
 
-from tc_mcp.tools import Permission, lang, seg, text
+from tc_mcp.tools.common import Permission, lang, seg, text
 
 pytestmark = pytest.mark.anyio
 

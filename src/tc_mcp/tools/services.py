@@ -1,11 +1,9 @@
-from typing import Any, Literal
+from typing import Any
 
 from mcp.server.mcpserver import Context, MCPServer
 
-from tc_mcp.tools import REPEATABLE, WRITE, fields, register_readers, registry, seg
-
-# Transfer formats TrueConnector implements over HTTP (it.eng.datatransfer.model.DataTransferFormat).
-Format = Literal["HttpData-PULL", "HttpData-PUSH"]
+from tc_mcp.registry import registry
+from tc_mcp.tools.common import REPEATABLE, WRITE, Format, fields, register_readers, seg
 
 
 async def create_data_service(
