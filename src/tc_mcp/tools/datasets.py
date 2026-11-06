@@ -15,6 +15,7 @@ from tc_mcp.tools import (
     READ_ONLY,
     REPEATABLE,
     WRITE,
+    Format,
     Permission,
     Registry,
     fields,
@@ -22,7 +23,6 @@ from tc_mcp.tools import (
     registry,
     seg,
 )
-from tc_mcp.tools.services import Format
 
 HttpUrl = Annotated[str, Field(pattern=r"^https?://\S+$")]
 DistributionIds = Annotated[list[str], Field(min_length=1)]

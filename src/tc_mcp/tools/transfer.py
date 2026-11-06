@@ -11,6 +11,7 @@ from tc_mcp.tools import (
     READ_ONLY,
     REPEATABLE,
     WRITE,
+    Format,
     Page,
     PageNumber,
     PageSize,
@@ -20,7 +21,6 @@ from tc_mcp.tools import (
     seg,
     transition,
 )
-from tc_mcp.tools.services import Format
 
 TransferState = Literal["INITIALIZED", "REQUESTED", "STARTED", "SUSPENDED", "COMPLETED", "TERMINATED"]
 

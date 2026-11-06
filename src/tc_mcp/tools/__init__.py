@@ -17,6 +17,7 @@ REPEATABLE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idemp
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True)
 
 Role = Literal["consumer", "provider"]
+Format = Literal["HttpData-PULL", "HttpData-PUSH"]
 PageNumber = Annotated[int, Field(ge=0, description="0-based page number")]
 PageSize = Annotated[int, Field(ge=1, le=100)]
 

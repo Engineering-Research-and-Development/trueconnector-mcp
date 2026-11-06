@@ -70,7 +70,7 @@
   {"name": "update_distribution ignores format", "file": "src/tc_mcp/tools/services.py", "old": "        distribution[\"format\"] = format\n", "new": "        pass\n"},
   {"name": "update_distribution ignores service", "file": "src/tc_mcp/tools/services.py", "old": "    if access_service_id:\n        distribution[\"accessService\"]", "new": "    if False:\n        distribution[\"accessService\"]"},
   {"name": "update_distribution always looks up service", "file": "src/tc_mcp/tools/services.py", "old": "    if access_service_id:\n        distribution[\"accessService\"] = await client.request(\"GET\", f\"/api/v1/dataservices/{seg(access_service_id)}\")", "new": "    if True:\n        distribution[\"accessService\"] = await client.request(\"GET\", f\"/api/v1/dataservices/{seg(access_service_id or 'x')}\")"},
-  {"name": "format accepts any string", "file": "src/tc_mcp/tools/services.py", "old": "Format = Literal[\"HttpData-PULL\", \"HttpData-PUSH\"]", "new": "Format = str"},
+  {"name": "format accepts any string", "file": "src/tc_mcp/tools/__init__.py", "old": "Format = Literal[\"HttpData-PULL\", \"HttpData-PUSH\"]", "new": "Format = str"},
   {"name": "fields keeps None", "file": "src/tc_mcp/tools/__init__.py", "old": "    return {k: v for k, v in given.items() if v is not None}", "new": "    return given"},
   {"name": "description not wrapped", "file": "src/tc_mcp/tools/__init__.py", "old": "\"description\": description and lang(description)", "new": "\"description\": description"},
   {"name": "create_data_service sends endpointURL", "file": "src/tc_mcp/tools/services.py", "old": "body = fields(title, description, keywords)\n", "new": "body = {**fields(title, description, keywords), \"endpointURL\": None}\n"},
