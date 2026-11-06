@@ -10,17 +10,16 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
 from tc_mcp.client import TCClient
-from tc_mcp.tools import (
+from tc_mcp.registry import Registry, registry
+from tc_mcp.tools.common import (
     DESTRUCTIVE,
     READ_ONLY,
     REPEATABLE,
     WRITE,
     Format,
     Permission,
-    Registry,
     fields,
     register_readers,
-    registry,
     seg,
 )
 

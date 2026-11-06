@@ -160,7 +160,7 @@ With more than one connector, every tool needs `connector`. Each connector call 
 uv run pytest                                           # unit tests and the API drift test, offline
 uv run pytest -m integration tests/integration tests/contract  # against the local stack (.env.example)
 docker compose up -d --build && uv run pytest -m integration tests/scenarios  # prompt flows over HTTP
-uv run python tools/mutate.py . tools/mutants.json      # every mutant must make a test fail (slow: ~15 min)
+uv run python scripts/mutate.py . scripts/mutants.json  # every mutant must make a test fail (slow: ~15 min)
 ```
 
 The live tests create and delete their own datasets, and switch tenant automation off and back on where they need

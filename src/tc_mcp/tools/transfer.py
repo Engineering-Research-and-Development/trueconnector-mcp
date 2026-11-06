@@ -5,7 +5,8 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from tc_mcp.tools import (
+from tc_mcp.registry import registry
+from tc_mcp.tools.common import (
     DESTRUCTIVE,
     READ_ONLY,
     REPEATABLE,
@@ -17,7 +18,6 @@ from tc_mcp.tools import (
     Role,
     check_side,
     page_params,
-    registry,
     seg,
     transition,
 )

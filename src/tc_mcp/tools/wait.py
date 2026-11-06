@@ -5,7 +5,8 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from tc_mcp.tools import READ_ONLY, registry, seg
+from tc_mcp.registry import registry
+from tc_mcp.tools.common import READ_ONLY, seg
 from tc_mcp.tools.negotiation import NegotiationState
 from tc_mcp.tools.transfer import TransferState
 

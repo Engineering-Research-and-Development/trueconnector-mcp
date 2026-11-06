@@ -4,7 +4,8 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import Field
 
-from tc_mcp.tools import READ_ONLY, Page, PageNumber, PageSize, page_params, registry, seg
+from tc_mcp.registry import registry
+from tc_mcp.tools.common import READ_ONLY, Page, PageNumber, PageSize, page_params, seg
 
 Instant = Annotated[str, Field(description="ISO-8601 instant, e.g. 2026-11-01T00:00:00Z")]
 

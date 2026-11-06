@@ -2,7 +2,8 @@ from typing import Any
 
 from mcp.server.mcpserver import Context, MCPServer
 
-from tc_mcp.tools import DESTRUCTIVE, READ_ONLY, REPEATABLE, WRITE, registry, seg, text
+from tc_mcp.registry import registry
+from tc_mcp.tools.common import DESTRUCTIVE, READ_ONLY, REPEATABLE, WRITE, seg, text
 
 
 def summarize_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
