@@ -5,7 +5,6 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from tc_mcp.client import AlreadyInState
 from tc_mcp.tools import (
     DESTRUCTIVE,
     READ_ONLY,
@@ -100,12 +99,8 @@ async def request_transfer(
     record = await client.request("GET", path)
     check_side(client, record, "consumer", transfer_process_id, "request is a consumer action", "its transfer @id")
     body = {"transferProcessId": transfer_process_id, "format": format}
-    try:
-        result = await client.request("POST", "/api/v1/transfers", json=body)
-        return TransferStep(already_done=False, state=result["state"], transfer=result)
-    except AlreadyInState:
-        record = await client.request("GET", path)
-        return TransferStep(already_done=True, state=record["state"], transfer=record)
+    already_done, result = await transition(client, path, client.request("POST", "/api/v1/transfers", json=body))
+    return TransferStep(already_done=already_done, state=result["state"], transfer=result)
 
 
 class Move(BaseModel):
@@ -166,7 +161,8 @@ TRANSITIONS = {
 def register_transition(mcp: MCPServer, action: str, description: str) -> None:
     async def run(ctx: Context, transfer_process_id: str, connector: str | None = None) -> TransferStep:
         client = registry(ctx).get(connector)
-        already_done, record = await transition(client, f"/api/v1/transfers/{seg(transfer_process_id)}", action)
+        path = f"/api/v1/transfers/{seg(transfer_process_id)}"
+        already_done, record = await transition(client, path, client.request("PUT", f"{path}/{action}"))
         return TransferStep(already_done=already_done, state=record["state"], transfer=record)
 
     mcp.add_tool(

@@ -207,7 +207,8 @@ def register_transition(mcp: MCPServer, action: str, role: Role | None, descript
         if role is not None:
             how = "find_counterpart_negotiation's @id"
             check_side(client, record, role, negotiation_id, f"{action} is a {role} action", how)
-        already_done, result = await transition(client, path, action)  # verify and finalize answer without the record
+        # verify and finalize answer without the record
+        already_done, result = await transition(client, path, client.request("PUT", f"{path}/{action}"))
         return Transition(already_done=already_done, state=result["state"], negotiation=result)
 
     mcp.add_tool(

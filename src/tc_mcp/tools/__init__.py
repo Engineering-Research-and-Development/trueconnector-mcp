@@ -1,3 +1,4 @@
+from collections.abc import Awaitable
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import quote
 
@@ -70,11 +71,14 @@ class Permission(BaseModel):
     constraint: list[Constraint] = Field(min_length=1)
 
 
-async def transition(client: TCClient, path: str, action: str) -> tuple[bool, dict[str, Any]]:
-    """PUT `{path}/{action}`; a repeat (already in that state) is not an error. Returns (already_done, record)."""
+async def transition(client: TCClient, path: str, step: Awaitable[Any]) -> tuple[bool, dict[str, Any]]:
+    """Await the lifecycle request `step`; a repeat (already in that state) is not an error.
+
+    Returns (already_done, the record at `path`).
+    """
     already_done, result = False, None
     try:
-        result = await client.request("PUT", f"{path}/{action}")
+        result = await step
     except AlreadyInState:
         already_done = True
     if not (isinstance(result, dict) and "state" in result):  # a repeat, or an answer without the record
