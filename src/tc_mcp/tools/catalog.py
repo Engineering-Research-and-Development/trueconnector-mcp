@@ -2,7 +2,7 @@ from typing import Any
 
 from mcp.server.mcpserver import Context, MCPServer
 
-from tc_mcp.tools import DESTRUCTIVE, READ_ONLY, WRITE, registry, seg, text
+from tc_mcp.tools import DESTRUCTIVE, READ_ONLY, REPEATABLE, WRITE, registry, seg, text
 
 
 def summarize_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
@@ -84,6 +84,6 @@ async def delete_catalog(ctx: Context, id: str, connector: str | None = None) ->
 def register(mcp: MCPServer) -> None:
     for read in (browse_remote_catalog, get_remote_dataset_formats, get_own_catalog, get_catalog):
         mcp.add_tool(read, annotations=READ_ONLY)
-    for write in (create_catalog, update_catalog):
-        mcp.add_tool(write, annotations=WRITE)
+    mcp.add_tool(create_catalog, annotations=WRITE)
+    mcp.add_tool(update_catalog, annotations=REPEATABLE)
     mcp.add_tool(delete_catalog, annotations=DESTRUCTIVE)

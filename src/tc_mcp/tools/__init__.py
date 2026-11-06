@@ -9,7 +9,9 @@ from tc_mcp.client import AlreadyInState, Registry, TCClient
 
 READ_ONLY = ToolAnnotations(read_only_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False)
-DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
+# A repeat changes nothing: updates set the same values, lifecycle steps return already_done.
+REPEATABLE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True)
+DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True)
 
 Role = Literal["consumer", "provider"]
 PageNumber = Annotated[int, Field(ge=0, description="0-based page number")]

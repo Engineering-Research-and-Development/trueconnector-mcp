@@ -68,7 +68,7 @@ def login_response(access: str, refresh: str, expires_in: int = 900) -> httpx2.R
 
 def make_client(fake: FakeConnector, **connector: Any) -> TCClient:
     conn = Connector(**{"name": "a", "base_url": "http://tc", **connector})
-    return TCClient(conn, timeout_s=5, transport=httpx2.MockTransport(fake))
+    return TCClient(conn, timeout_s=5, transport=httpx2.MockTransport(fake), max_concurrency=4)
 
 
 async def call(fake: FakeConnector, tool: str, **arguments: Any) -> CallToolResult:

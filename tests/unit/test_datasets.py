@@ -308,3 +308,99 @@ async def test_dataset_formats_and_artifacts_are_wrapped():
         "/api/v1/artifacts",
         "/api/v1/artifacts/urn:uuid:art",
     ]
+
+
+def distribution(id, service):
+    return {"@id": id, "accessService": {"@id": service}}
+
+
+def unpublishing(datasets, remaining_distributions, failing=()):
+    """A connector holding `datasets` (the first is unpublished) and, after the deletes, `remaining_distributions`."""
+    ok = httpx2.Response(200, json={"success": True, "message": "deleted", "data": None})
+    routes = {
+        ("GET", f"/api/v1/datasets/{datasets[0]['@id']}"): lambda r: httpx2.Response(200, json=datasets[0]),
+        ("GET", "/api/v1/datasets"): lambda r: httpx2.Response(200, json=datasets),
+        ("GET", "/api/v1/distributions"): lambda r: httpx2.Response(200, json=remaining_distributions),
+    }
+    for path in (
+        "/api/v1/datasets/ds1",
+        "/api/v1/distributions/d1",
+        "/api/v1/distributions/d3",
+        "/api/v1/dataservices/s1",
+    ):
+        routes["DELETE", path] = (
+            (lambda r: httpx2.Response(500, json={"message": "boom"})) if path in failing else (lambda r: ok)
+        )
+    return FakeConnector(routes)
+
+
+def deletes(fake):
+    return [r.url.path for r in fake.requests if r.method == "DELETE"]
+
+
+async def test_unpublish_deletes_what_nothing_else_uses():
+    broken = {"@id": "ds3", "distribution": [None]}  # a dataset whose distribution was deleted under it
+    no_distributions = {"@id": "ds4"}
+    mine = {"@id": "ds1", "distribution": [distribution("d1", "s1"), None, distribution("d3", "s1")]}  # s1 once
+    others = [{"@id": "ds2", "distribution": [distribution("d2", "s2")]}, broken, no_distributions]
+    fake = unpublishing([mine, *others], [])
+
+    result = await call(fake, "unpublish_dataset", id="ds1", connector="b")
+
+    assert not result.is_error, result.content
+    assert result.structured_content == {
+        "deleted": [
+            {"kind": "dataset", "id": "ds1", "reason": None},
+            {"kind": "distribution", "id": "d1", "reason": None},
+            {"kind": "distribution", "id": "d3", "reason": None},
+            {"kind": "data_service", "id": "s1", "reason": None},
+        ],
+        "kept": [],
+    }
+    assert deletes(fake) == [
+        "/api/v1/datasets/ds1",
+        "/api/v1/distributions/d1",
+        "/api/v1/distributions/d3",
+        "/api/v1/dataservices/s1",
+    ]
+
+
+async def test_unpublish_keeps_a_distribution_another_dataset_uses():
+    shared = distribution("d1", "s1")
+    fake = unpublishing([{"@id": "ds1", "distribution": [shared]}, {"@id": "ds2", "distribution": [shared]}], [shared])
+
+    result = await call(fake, "unpublish_dataset", id="ds1", connector="b")
+
+    assert result.structured_content == {
+        "deleted": [{"kind": "dataset", "id": "ds1", "reason": None}],
+        "kept": [
+            {"kind": "distribution", "id": "d1", "reason": "still used by dataset ds2"},
+            {"kind": "data_service", "id": "s1", "reason": "still used by distribution d1"},
+        ],
+    }
+    assert deletes(fake) == ["/api/v1/datasets/ds1"]
+
+
+async def test_unpublish_keeps_a_data_service_another_distribution_uses():
+    other = distribution("d2", "s1")
+    datasets = [{"@id": "ds1", "distribution": [distribution("d1", "s1")]}, {"@id": "ds2", "distribution": [other]}]
+    fake = unpublishing(datasets, [other])
+
+    result = await call(fake, "unpublish_dataset", id="ds1", connector="b")
+
+    assert result.structured_content["kept"] == [
+        {"kind": "data_service", "id": "s1", "reason": "still used by distribution d2"}
+    ]
+    assert deletes(fake) == ["/api/v1/datasets/ds1", "/api/v1/distributions/d1"]
+
+
+async def test_unpublish_failing_halfway_says_what_is_already_gone():
+    fake = unpublishing(
+        [{"@id": "ds1", "distribution": [distribution("d1", "s1")]}], [], failing={"/api/v1/distributions/d1"}
+    )
+
+    result = await call(fake, "unpublish_dataset", id="ds1", connector="b")
+
+    assert result.is_error
+    assert result.content[0].text.endswith("(unpublish_dataset had already deleted: dataset ds1)")
+    assert "/api/v1/dataservices/s1" not in deletes(fake)

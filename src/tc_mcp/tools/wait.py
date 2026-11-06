@@ -14,11 +14,17 @@ KINDS = {
     "negotiation": ("/api/v1/negotiations", set(get_args(NegotiationState)), {"FINALIZED", "TERMINATED"}),
     "transfer": ("/api/v1/transfers", {*get_args(TransferState), "DOWNLOADED"}, {"COMPLETED", "TERMINATED"}),
 }
-FAILED_MOVE = (
-    "The data move ended without data, and TrueConnector reports no error for it. Usual causes: the dataset's "
-    "source URL is unreachable from the provider, or the storage endpoint is misconfigured; the connector logs "
-    "have the reason. move_transfer_data can be retried once the cause is fixed."
-)
+
+
+def failed_move(connector: str, consumer_pid: str) -> str:
+    return (
+        "The data move ended without data, and TrueConnector reports no error on the transfer. The reason is in "
+        f'the audit log: list_audit_events(event_type=["TRANSFER_FAILED"], connector="{connector}"), the event '
+        f'whose details.consumerPid is "{consumer_pid}", in details.errorMessage. Usual causes: the dataset links '
+        "its data (EXTERNAL artifact), which current TrueConnector builds cannot transfer; the source is "
+        "unreachable; or the storage endpoint is unreachable from the other connector. The diagnose_process prompt "
+        "goes through it; move_transfer_data can be retried once the cause is fixed."
+    )
 
 
 class Wait(BaseModel):
@@ -66,7 +72,8 @@ async def wait_for_state(
             if record.get("downloadInProgress"):
                 seen_running = True
             elif seen_running or (client.connector.name, record["@id"]) in reg.moves_started:
-                return Wait(outcome="failed", state=state, object=record, hint=FAILED_MOVE)
+                hint = failed_move(client.connector.name, record["consumerPid"])
+                return Wait(outcome="failed", state=state, object=record, hint=hint)
         remaining = deadline - anyio.current_time()
         if remaining <= 0:
             return Wait(outcome="timeout", state=state, object=record)

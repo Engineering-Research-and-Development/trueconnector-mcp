@@ -67,7 +67,8 @@ async def test_times_out_with_the_last_state_seen():
         result = await wait(fake, states=["FINALIZED"], timeout_s=0.6, interval_s=0.5)
 
     assert (result.structured_content["outcome"], result.structured_content["state"]) == ("timeout", "REQUESTED")
-    assert len(polled_at) == 3  # at 0 s, 0.5 s and the deadline
+    # At 0 s, 0.5 s and the deadline; a 4th when the last sleep ends a clock tick early (~16 ms on Windows).
+    assert len(polled_at) in (3, 4)
     assert polled_at[-1] - polled_at[0] < 0.9  # the last sleep is cut short at the deadline (else 1.0 s)
 
 
@@ -109,11 +110,12 @@ async def test_rejects_unknown_states_and_bad_limits_before_polling(bad):
 
 
 TID = "urn:uuid:720f3f3a-d5de-43b0-989d-80d42fae8665"
+CONSUMER_PID = "urn:uuid:c0n5"
 TRANSFER_PATH = f"/api/v1/transfers/{TID}"
 
 
 def transfer(state="STARTED", downloaded=False, running=False):
-    return {"@id": TID, "role": "consumer", "format": "HttpData-PULL", "state": state} | {
+    return {"@id": TID, "consumerPid": CONSUMER_PID, "role": "consumer", "format": "HttpData-PULL", "state": state} | {
         "downloaded": downloaded,
         "downloadInProgress": running,
     }
@@ -175,7 +177,10 @@ async def test_wait_detects_failed_move_started_by_this_server():
 
     assert moved.structured_content["accepted"] is True
     assert result.structured_content["outcome"] == "failed"
-    assert "ended without data" in result.structured_content["hint"]
+    hint = result.structured_content["hint"]
+    assert "ended without data" in hint
+    assert 'list_audit_events(event_type=["TRANSFER_FAILED"], connector="a")' in hint
+    assert f'details.consumerPid is "{CONSUMER_PID}"' in hint
     assert len(fake.calls("GET", TRANSFER_PATH)) == 2  # failed on the first poll, no waiting
 
 
