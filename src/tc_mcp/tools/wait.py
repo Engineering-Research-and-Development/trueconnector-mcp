@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from tc_mcp.registry import registry
 from tc_mcp.tools.common import READ_ONLY, seg
 from tc_mcp.tools.negotiation import NegotiationState
-from tc_mcp.tools.transfer import TransferState
+from tc_mcp.tools.transfer import TransferState, data_move
 
 # kind: (path, the states it can be waited for, final states)
 KINDS = {
@@ -63,18 +63,17 @@ async def wait_for_state(
     while True:
         record = await client.request("GET", f"{path}/{seg(id)}")
         state = record["state"]
-        if {state, *(["DOWNLOADED"] if record.get("downloaded") else [])} & set(states):
+        moved = seen_running or (client.connector.name, record["@id"]) in reg.moves_started
+        move = data_move(record, moved) if kind == "transfer" else None
+        if {state, *(["DOWNLOADED"] if move == "arrived" else [])} & set(states):
             return Wait(outcome="reached", state=state, object=record)
         if state in final:
             return Wait(outcome="final", state=state, object=record)
-        # The only trace of a failed move: STARTED, no data, nothing running. Only call it failed when a move is
-        # known to have run, never because one has not started yet.
-        if kind == "transfer" and state == "STARTED" and not record.get("downloaded"):
-            if record.get("downloadInProgress"):
-                seen_running = True
-            elif seen_running or (client.connector.name, record["@id"]) in reg.moves_started:
-                hint = failed_move(client.connector.name, record["consumerPid"])
-                return Wait(outcome="failed", state=state, object=record, hint=hint)
+        if move == "moving":
+            seen_running = True
+        elif move == "failed":
+            hint = failed_move(client.connector.name, record["consumerPid"])
+            return Wait(outcome="failed", state=state, object=record, hint=hint)
         remaining = deadline - anyio.current_time()
         if remaining <= 0:
             return Wait(outcome="timeout", state=state, object=record)

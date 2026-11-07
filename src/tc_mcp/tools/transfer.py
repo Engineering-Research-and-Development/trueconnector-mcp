@@ -112,6 +112,28 @@ class DataUrl(BaseModel):
     url: str
 
 
+# The side that moves the data: PULL, the consumer fetches it; PUSH, the provider uploads it.
+MOVER: dict[str, Role] = {"HttpData-PULL": "consumer", "HttpData-PUSH": "provider"}
+
+DataMove = Literal["arrived", "inactive", "moving", "idle", "failed"]
+
+
+def data_move(record: dict[str, Any], moved: bool = False) -> DataMove:
+    """Where a transfer's data is; TrueConnector reports it only in `downloaded` and `downloadInProgress`.
+
+    Data moves only while STARTED. A STARTED transfer with no data and nothing running is `failed` when a move is
+    known to have run (`moved`), never because one has not started yet (`idle`): that is the only trace of a
+    failed move.
+    """
+    if record.get("downloaded"):
+        return "arrived"
+    if record["state"] != "STARTED":
+        return "inactive"
+    if record.get("downloadInProgress"):
+        return "moving"
+    return "failed" if moved else "idle"
+
+
 async def move_transfer_data(ctx: Context, transfer_process_id: str, connector: str | None = None) -> Move:
     """Start moving the data of a STARTED transfer, in the background (watch `downloaded` on the transfer).
 
@@ -122,19 +144,20 @@ async def move_transfer_data(ctx: Context, transfer_process_id: str, connector: 
     client = reg.get(connector)
     path = f"/api/v1/transfers/{seg(transfer_process_id)}"
     record = await client.request("GET", path)
-    if record.get("format") not in ("HttpData-PULL", "HttpData-PUSH"):
+    side = MOVER.get(record.get("format"))
+    if side is None:
         raise ToolError(f"transfer {transfer_process_id} has no format yet: the consumer must request_transfer first")
-    side: Role = "consumer" if record["format"] == "HttpData-PULL" else "provider"
     # The wrong side is not refused by TrueConnector: PUSH on the consumer is a 500 "Decryption failed", and PULL on
     # the provider is accepted and copies the data into the provider's own storage.
     what = f"{record['format']} data is moved by the {side}"
     check_side(client, record, side, transfer_process_id, what, "its transfer @id")
-    if record.get("downloaded"):
-        return Move(accepted=False, message="the data is already downloaded: get_transfer_data_url gives its link")
-    if record["state"] != "STARTED":
-        raise ToolError(f"transfer {transfer_process_id} is {record['state']}: data moves only while STARTED")
-    if record.get("downloadInProgress"):
-        return Move(accepted=False, message="a data move is already running for this transfer")
+    match data_move(record):
+        case "arrived":
+            return Move(accepted=False, message="the data is already downloaded: get_transfer_data_url gives its link")
+        case "inactive":
+            raise ToolError(f"transfer {transfer_process_id} is {record['state']}: data moves only while STARTED")
+        case "moving":
+            return Move(accepted=False, message="a data move is already running for this transfer")
     message = await client.request("GET", f"{path}/download")
     reg.moves_started.add((client.connector.name, record["@id"]))
     return Move(accepted=True, message=str(message))
