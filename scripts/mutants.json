@@ -333,5 +333,8 @@
   {"name": "refresh sent raw, outside the error mapping", "file": "src/tc_mcp/client.py", "old": "                tokens = await self.request(\n                    \"POST\", \"/api/v1/auth/refresh\", auth=False, json={\"refresh_token\": self._refresh}\n                )\n", "new": "                tokens = (await self._http.post(\"/api/v1/auth/refresh\", json={\"refresh_token\": self._refresh})).json()\n"},
   {"name": "check_side never refuses", "file": "src/tc_mcp/tools/common.py", "old": "    if record[\"role\"] != side:\n", "new": "    if False:\n"},
   {"name": "transfer transition endpoint wrong", "file": "src/tc_mcp/tools/transfer.py", "old": "transition(client, path, client.request(\"PUT\", f\"{path}/{action}\"))", "new": "transition(client, path, client.request(\"PUT\", path))"},
-  {"name": "live distributions keep nulls", "file": "src/tc_mcp/tools/datasets.py", "old": "return [x for x in d.get(\"distribution\") or [] if x]", "new": "return [x for x in d.get(\"distribution\") or []]"}
+  {"name": "live distributions keep nulls", "file": "src/tc_mcp/tools/datasets.py", "old": "return [x for x in d.get(\"distribution\") or [] if x]", "new": "return [x for x in d.get(\"distribution\") or []]"},
+  {"name": "generated titles still listed", "file": "src/tc_mcp/server.py", "old": "mcp = _Server(", "new": "mcp = MCPServer("},
+  {"name": "argument named title dropped", "file": "src/tc_mcp/server.py", "old": "if key == \"properties\":", "new": "if key == \"$defs\":"},
+  {"name": "nested schemas keep titles", "file": "src/tc_mcp/server.py", "old": "out[key] = _untitled(value)", "new": "out[key] = value"}
 ]

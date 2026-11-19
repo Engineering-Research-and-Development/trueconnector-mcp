@@ -1,9 +1,11 @@
 import contextlib
 import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx2
 from mcp.server.mcpserver import MCPServer
+from mcp.types import Tool as MCPTool
 
 from tc_mcp import prompts, resources
 from tc_mcp.config import Settings
@@ -16,6 +18,30 @@ INSTRUCTIONS = f"""Negotiations and transfers move through these state machines.
 {negotiation.STATE_MACHINE}
 
 {transfer.STATE_MACHINE}"""
+
+
+def _untitled(schema: Any) -> Any:
+    """Drop pydantic's generated titles ("Dataset Id" for dataset_id): they repeat the name and cost tokens on every
+    request. Property names are kept, so an argument called `title` survives."""
+    if isinstance(schema, list):
+        return [_untitled(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    out = {}
+    for key, value in schema.items():
+        if key == "properties":
+            out[key] = {name: _untitled(sub) for name, sub in value.items()}
+        elif key != "title":
+            out[key] = _untitled(value)
+    return out
+
+
+class _Server(MCPServer):
+    async def list_tools(self) -> list[MCPTool]:
+        tools = await super().list_tools()
+        for tool in tools:
+            tool.input_schema = _untitled(tool.input_schema)
+        return tools
 
 
 def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None = None) -> MCPServer:
@@ -31,7 +57,7 @@ def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None
         finally:
             await registry.aclose()
 
-    mcp = MCPServer("trueconnector", instructions=INSTRUCTIONS, lifespan=lifespan)
+    mcp = _Server("trueconnector", instructions=INSTRUCTIONS, lifespan=lifespan)
     logging.getLogger("httpx2").setLevel(logging.WARNING)
     ops.register(mcp)
     catalog.register(mcp)

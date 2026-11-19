@@ -81,7 +81,30 @@ async def test_every_tool_declares_its_effect():
         assert effect[name] == (False, True, True), name
 
 
-async def test_read_only_mode_exposes_only_read_tools():
+def schema_titles(schema):
+    """Every `title` keyword in a JSON schema; property names are not keywords."""
+    if isinstance(schema, list):
+        return [t for item in schema for t in schema_titles(item)]
+    if not isinstance(schema, dict):
+        return []
+    found = [schema["title"]] if "title" in schema else []
+    for key, value in schema.items():
+        if key == "properties":
+            found += [t for sub in value.values() for t in schema_titles(sub)]
+        elif key != "title":
+            found += schema_titles(value)
+    return found
+
+
+async def test_input_schemas_carry_no_generated_titles():
+    async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
+        tools = {t.name: t.input_schema for t in (await client.list_tools()).tools}
+
+    assert {name: schema_titles(schema) for name, schema in tools.items() if schema_titles(schema)} == {}
+    # An argument called `title` is a property name, not a generated title.
+    assert "title" in tools["publish_dataset"]["properties"]
+    assert "title" in tools["publish_dataset"]["required"]
+    assert tools["send_counteroffer"]["$defs"]
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         reads = {t.name for t in (await client.list_tools()).tools if t.annotations.read_only_hint}
 
