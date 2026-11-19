@@ -214,21 +214,17 @@ def register_transition(mcp: MCPServer, action: str, role: Role | None, descript
     mcp.add_tool(
         run,
         name=f"{action}_negotiation",
-        description=f"{description} A repeated call returns already_done.\n\n{STATE_MACHINE}",
+        description=f"{description} A repeated call returns already_done.",
         annotations=DESTRUCTIVE if action == "terminate" else REPEATABLE,
     )
 
 
 def register(mcp: MCPServer) -> None:
     for read in (list_negotiations, get_negotiation, find_counterpart_negotiation):
-        mcp.add_tool(
-            read, annotations=READ_ONLY, description=f"{inspect.cleandoc(read.__doc__ or '')}\n\n{STATE_MACHINE}"
-        )
+        mcp.add_tool(read, annotations=READ_ONLY, description=inspect.cleandoc(read.__doc__ or ""))
     for check in (validate_offer, enforce_agreement):
         mcp.add_tool(check, annotations=READ_ONLY)
     for write in (request_contract, send_counteroffer):
-        mcp.add_tool(
-            write, annotations=WRITE, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
-        )
+        mcp.add_tool(write, annotations=WRITE, description=inspect.cleandoc(write.__doc__ or ""))
     for action, (role, description) in TRANSITIONS.items():
         register_transition(mcp, action, role, description)

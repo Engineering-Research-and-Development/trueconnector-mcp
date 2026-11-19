@@ -198,19 +198,15 @@ def register_transition(mcp: MCPServer, action: str, description: str) -> None:
     mcp.add_tool(
         run,
         name=f"{action}_transfer",
-        description=f"{description} A repeated call returns already_done.\n\n{STATE_MACHINE}",
+        description=f"{description} A repeated call returns already_done.",
         annotations=DESTRUCTIVE if action == "terminate" else REPEATABLE,
     )
 
 
 def register(mcp: MCPServer) -> None:
     for read in (list_transfers, get_transfer, find_transfer_for_agreement, get_transfer_data_url):
-        mcp.add_tool(
-            read, annotations=READ_ONLY, description=f"{inspect.cleandoc(read.__doc__ or '')}\n\n{STATE_MACHINE}"
-        )
+        mcp.add_tool(read, annotations=READ_ONLY, description=inspect.cleandoc(read.__doc__ or ""))
     for write, annotations in ((request_transfer, REPEATABLE), (move_transfer_data, WRITE)):
-        mcp.add_tool(
-            write, annotations=annotations, description=f"{inspect.cleandoc(write.__doc__ or '')}\n\n{STATE_MACHINE}"
-        )
+        mcp.add_tool(write, annotations=annotations, description=inspect.cleandoc(write.__doc__ or ""))
     for action, description in TRANSITIONS.items():
         register_transition(mcp, action, description)

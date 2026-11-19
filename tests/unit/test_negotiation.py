@@ -110,18 +110,13 @@ async def test_find_counterpart_reports_a_missing_counterpart():
     assert f"b has no counterpart for consumerPid {MINE['consumerPid']} (role ≠ consumer)" in result.content[0].text
 
 
-async def test_negotiation_tools_describe_the_state_machine_and_list_has_an_output_schema():
+async def test_the_state_machine_is_in_the_instructions_once_and_list_has_an_output_schema():
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
+        instructions = client.instructions or ""
 
-    for name in (
-        "list_negotiations",
-        "get_negotiation",
-        "find_counterpart_negotiation",
-        "request_contract",
-        "send_counteroffer",
-    ):
-        assert "OFFERED -> REQUESTED | ACCEPTED | TERMINATED" in tools[name].description, name
+    assert "OFFERED -> REQUESTED | ACCEPTED | TERMINATED" in instructions
+    assert not [t for t in tools.values() if "OFFERED -> REQUESTED" in (t.description or "")]
     schema = tools["list_negotiations"].output_schema
     assert schema is not None and set(schema["properties"]) == {"items", "page"}
     state = tools["list_negotiations"].input_schema["properties"]["state"]
@@ -472,12 +467,11 @@ async def test_an_illegal_transition_stays_an_error():
     assert "FINALIZED state can not transition to TERMINATED" in result.content[0].text
 
 
-async def test_transitions_describe_the_state_machine_and_have_an_output_schema():
+async def test_transitions_describe_repeats_and_have_an_output_schema():
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
 
     for action in ("accept", "agree", "verify", "finalize", "terminate"):
         tool = tools[f"{action}_negotiation"]
-        assert "OFFERED -> REQUESTED | ACCEPTED | TERMINATED" in tool.description, action
         assert "already_done" in tool.description, action
         assert set(tool.output_schema["properties"]) == {"already_done", "state", "negotiation"}, action

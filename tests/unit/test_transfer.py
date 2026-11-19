@@ -165,12 +165,13 @@ async def test_request_transfer_rejects_an_unknown_format_before_sending():
     assert fake.requests == []
 
 
-async def test_transfer_tools_describe_the_state_machine():
+async def test_the_transfer_state_machine_is_in_the_instructions_once():
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
+        instructions = client.instructions or ""
 
-    for name in ("list_transfers", "get_transfer", "find_transfer_for_agreement", "request_transfer"):
-        assert "STARTED -> SUSPENDED | COMPLETED | TERMINATED" in tools[name].description, name
+    assert "STARTED -> SUSPENDED | COMPLETED | TERMINATED" in instructions
+    assert not [t for t in tools.values() if "STARTED -> SUSPENDED" in (t.description or "")]
     assert set(tools["request_transfer"].output_schema["properties"]) == {"already_done", "state", "transfer"}
     assert set(tools["list_transfers"].output_schema["properties"]) == {"items", "page"}
 
@@ -220,13 +221,12 @@ async def test_an_illegal_or_wrong_side_transfer_transition_stays_an_error():
     assert "consumer can not transit from REQUESTED to STARTED" in result.content[0].text
 
 
-async def test_transfer_transitions_describe_the_state_machine_and_have_an_output_schema():
+async def test_transfer_transitions_describe_repeats_and_have_an_output_schema():
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
 
     for action, _ in ACTIONS:
         tool = tools[f"{action}_transfer"]
-        assert "STARTED -> SUSPENDED | COMPLETED | TERMINATED" in tool.description, action
         assert "already_done" in tool.description, action
         assert set(tool.output_schema["properties"]) == {"already_done", "state", "transfer"}, action
 

@@ -10,6 +10,13 @@ from tc_mcp.config import Settings
 from tc_mcp.registry import Registry
 from tc_mcp.tools import catalog, datasets, negotiation, ops, services, transfer, wait
 
+# Sent once per session, instead of in every negotiation and transfer tool's description.
+INSTRUCTIONS = f"""Negotiations and transfers move through these state machines.
+
+{negotiation.STATE_MACHINE}
+
+{transfer.STATE_MACHINE}"""
+
 
 def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None = None) -> MCPServer:
     @contextlib.asynccontextmanager
@@ -24,7 +31,7 @@ def build_server(settings: Settings, transport: httpx2.AsyncBaseTransport | None
         finally:
             await registry.aclose()
 
-    mcp = MCPServer("trueconnector", lifespan=lifespan)
+    mcp = MCPServer("trueconnector", instructions=INSTRUCTIONS, lifespan=lifespan)
     logging.getLogger("httpx2").setLevel(logging.WARNING)
     ops.register(mcp)
     catalog.register(mcp)
