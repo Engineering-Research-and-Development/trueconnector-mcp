@@ -51,10 +51,19 @@ async def test_list_negotiations_maps_filters_to_api_fields():
         "providerPid": "urn:p",
         "assigner": "urn:x",
     }
-    assert result.structured_content == {
-        "items": [{k: v for k, v in item.items() if k != "links"} for item in PAGED["content"]],
-        "page": PAGED["page"],
-    }
+    listed = [
+        {k: v for k, v in item.items() if k != "links"} | {"agreement": {"@id": item["agreement"]["@id"]}}
+        for item in PAGED["content"]
+    ]
+    assert result.structured_content == {"items": listed, "page": PAGED["page"]}
+
+
+async def test_list_negotiations_keeps_a_missing_agreement_missing():
+    fake = FakeConnector({("GET", "/api/v1/negotiations"): page_of(MINE | {"agreement": None, "state": "REQUESTED"})})
+
+    result = await call(fake, "list_negotiations", connector="a")
+
+    assert result.structured_content["items"][0]["agreement"] is None
 
 
 async def test_list_negotiations_sends_only_paging_without_filters():

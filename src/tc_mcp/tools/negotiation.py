@@ -48,11 +48,18 @@ async def list_negotiations(
     size: PageSize = 20,
     connector: str | None = None,
 ) -> Page:
-    """This connector's negotiations, newest first, filtered by exact match."""
+    """This connector's negotiations, newest first, filtered by exact match.
+
+    An agreement is listed by its `@id` only, since its terms are the offer's; get_negotiation returns it in full.
+    """
     params = page_params(
         page, size, state=state, role=role, consumer_pid=consumer_pid, provider_pid=provider_pid, assigner=assigner
     )
-    return Page.model_validate(await registry(ctx).get(connector).request("GET", "/api/v1/negotiations", params=params))
+    listed = await registry(ctx).get(connector).request("GET", "/api/v1/negotiations", params=params)
+    for negotiation in listed["items"]:
+        if negotiation.get("agreement"):
+            negotiation["agreement"] = {"@id": negotiation["agreement"]["@id"]}
+    return Page.model_validate(listed)
 
 
 async def get_negotiation(ctx: Context, id: str, connector: str | None = None) -> Any:

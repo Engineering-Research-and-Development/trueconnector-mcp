@@ -336,5 +336,8 @@
   {"name": "live distributions keep nulls", "file": "src/tc_mcp/tools/datasets.py", "old": "return [x for x in d.get(\"distribution\") or [] if x]", "new": "return [x for x in d.get(\"distribution\") or []]"},
   {"name": "generated titles still listed", "file": "src/tc_mcp/server.py", "old": "mcp = _Server(", "new": "mcp = MCPServer("},
   {"name": "argument named title dropped", "file": "src/tc_mcp/server.py", "old": "if key == \"properties\":", "new": "if key == \"$defs\":"},
-  {"name": "nested schemas keep titles", "file": "src/tc_mcp/server.py", "old": "out[key] = _untitled(value)", "new": "out[key] = value"}
+  {"name": "nested schemas keep titles", "file": "src/tc_mcp/server.py", "old": "out[key] = _untitled(value)", "new": "out[key] = value"},
+  {"name": "listed agreements kept in full", "file": "src/tc_mcp/tools/negotiation.py", "old": "negotiation[\"agreement\"] = {\"@id\": negotiation[\"agreement\"][\"@id\"]}", "new": "pass"},
+  {"name": "missing agreement listed as an id", "file": "src/tc_mcp/tools/negotiation.py", "old": "if negotiation.get(\"agreement\"):", "new": "if True:"},
+  {"name": "other schema keys dropped with the titles", "file": "src/tc_mcp/server.py", "old": "elif key != \"title\":", "new": "elif key not in (\"title\", \"description\"):"}
 ]
