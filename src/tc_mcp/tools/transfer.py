@@ -59,7 +59,14 @@ async def list_transfers(
 
 
 async def get_transfer(ctx: Context, id: str, connector: str | None = None) -> Any:
-    """One transfer process by this connector's `@id`, including `downloaded` and `downloadInProgress`."""
+    """One transfer process by this connector's `@id`, including `downloaded` and `downloadInProgress`.
+
+    STARTED with both false means either no data move has run yet, or one failed: TrueConnector reports a failed move
+    only in the audit log, as a TRANSFER_FAILED event whose details.consumerPid is this transfer's `consumerPid`
+    (list_audit_events(event_type=["TRANSFER_FAILED"])). Check it before starting a move. Usual causes: the dataset
+    links its data (EXTERNAL artifact, see get_dataset_artifact), which current TrueConnector builds cannot transfer;
+    the source is unreachable; or the storage endpoint is unreachable from the other connector.
+    """
     return await registry(ctx).get(connector).request("GET", f"/api/v1/transfers/{seg(id)}")
 
 
