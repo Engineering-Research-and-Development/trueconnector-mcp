@@ -6,6 +6,7 @@ import httpx2
 import mcp
 import pytest
 from helpers import FIXTURES, TWO_CONNECTORS, FakeConnector, login_response
+from mcp.server.mcpserver import MCPServer
 
 from tc_mcp.config import Settings
 from tc_mcp.server import build_server
@@ -81,30 +82,29 @@ async def test_every_tool_declares_its_effect():
         assert effect[name] == (False, True, True), name
 
 
-def schema_titles(schema):
-    """Every `title` keyword in a JSON schema; property names are not keywords."""
-    if isinstance(schema, list):
-        return [t for item in schema for t in schema_titles(item)]
-    if not isinstance(schema, dict):
-        return []
-    found = [schema["title"]] if "title" in schema else []
-    for key, value in schema.items():
-        if key == "properties":
-            found += [t for sub in value.values() for t in schema_titles(sub)]
-        elif key != "title":
-            found += schema_titles(value)
-    return found
+def leaves(schema, path=()):
+    """Every (path, value) leaf of a JSON document; an empty object or list counts as a leaf."""
+    if isinstance(schema, dict) and schema:
+        return {leaf for key, value in schema.items() for leaf in leaves(value, (*path, key))}
+    if isinstance(schema, list) and schema:
+        return {leaf for i, value in enumerate(schema) for leaf in leaves(value, (*path, i))}
+    return {(path, json.dumps(schema))}
 
 
-async def test_input_schemas_carry_no_generated_titles():
-    async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
-        tools = {t.name: t.input_schema for t in (await client.list_tools()).tools}
+async def test_input_schemas_are_listed_as_generated_minus_the_titles():
+    server = build_server(TWO_CONNECTORS)
+    generated = {t.name: t.input_schema for t in await MCPServer.list_tools(server)}
+    async with mcp.Client(server) as client:
+        listed = {t.name: t.input_schema for t in (await client.list_tools()).tools}
 
-    assert {name: schema_titles(schema) for name, schema in tools.items() if schema_titles(schema)} == {}
+    assert any(path[-1] == "title" for schema in generated.values() for path, _ in leaves(schema))
+    for name, schema in generated.items():
+        assert leaves(listed[name]) == {(p, v) for p, v in leaves(schema) if p[-1] != "title"}, name
     # An argument called `title` is a property name, not a generated title.
-    assert "title" in tools["publish_dataset"]["properties"]
-    assert "title" in tools["publish_dataset"]["required"]
-    assert tools["send_counteroffer"]["$defs"]
+    assert "title" in listed["publish_dataset"]["properties"]
+
+
+async def test_read_only_mode_exposes_only_read_tools():
     async with mcp.Client(build_server(TWO_CONNECTORS)) as client:
         reads = {t.name for t in (await client.list_tools()).tools if t.annotations.read_only_hint}
 
