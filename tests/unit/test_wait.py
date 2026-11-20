@@ -179,8 +179,7 @@ async def test_wait_detects_failed_move_started_by_this_server():
     assert result.structured_content["outcome"] == "failed"
     hint = result.structured_content["hint"]
     assert "ended without data" in hint
-    assert 'list_audit_events(event_type=["TRANSFER_FAILED"], connector="a")' in hint
-    assert f'details.consumerPid is "{CONSUMER_PID}"' in hint
+    assert f'list_audit_events(event_type=["TRANSFER_FAILED"], consumer_pid="{CONSUMER_PID}", connector="a")' in hint
     assert len(fake.calls("GET", TRANSFER_PATH)) == 2  # failed on the first poll, no waiting
 
 

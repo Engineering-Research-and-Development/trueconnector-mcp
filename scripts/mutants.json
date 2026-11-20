@@ -274,7 +274,7 @@
   {"name": "diagnose kinds swapped", "file": "src/tc_mcp/prompts.py", "old": "        if kind == \"negotiation\":\n            reads", "new": "        if kind != \"negotiation\":\n            reads"},
   {"name": "diagnose skips the failure events", "file": "src/tc_mcp/prompts.py", "old": "    \"transfer\": [\"TRANSFER_FAILED\", \"PROTOCOL_TRANSFER_STATE_TRANSITION_ERROR\", \"PROTOCOL_TRANSFER_TERMINATED\"],", "new": "    \"transfer\": [\"PROTOCOL_TRANSFER_STATE_TRANSITION_ERROR\", \"PROTOCOL_TRANSFER_TERMINATED\"],"},
   {"name": "diagnose names a code that does not exist", "file": "src/tc_mcp/prompts.py", "old": "        \"PROTOCOL_NEGOTIATION_REJECTED\",\n", "new": "        \"NEGOTIATION_REJECTED\",\n"},
-  {"name": "diagnose does not match events", "file": "src/tc_mcp/prompts.py", "old": " Keep the events whose details.consumerPid is this {kind}'s consumerPid;", "new": " Read the events;"},
+  {"name": "diagnose does not match events", "file": "src/tc_mcp/prompts.py", "old": "keep = \"Keep the events whose details.consumerPid is this negotiation's consumerPid; their\"", "new": "keep = \"Read the events; their\""},
   {"name": "diagnose without the state machine", "file": "src/tc_mcp/prompts.py", "old": "            checks, machine = TRANSFER_CHECKS, transfer.STATE_MACHINE\n", "new": "            checks, machine = TRANSFER_CHECKS, \"\"\n"},
   {"name": "diagnose forgets the EXTERNAL cause", "file": "src/tc_mcp/prompts.py", "old": "    dataset links its data (get_dataset_artifact on the provider: artifactType EXTERNAL), which current\n", "new": "    dataset links its data, which current\n"},
   {"name": "diagnose forgets the provider-started limit", "file": "src/tc_mcp/prompts.py", "old": "- A provider record without callbackAddress was started by the provider: TrueConnector cannot complete such a\n", "new": "- A provider record may lack callbackAddress: TrueConnector cannot complete such a\n"},
@@ -340,5 +340,18 @@
   {"name": "listed agreements kept in full", "file": "src/tc_mcp/tools/negotiation.py", "old": "negotiation[\"agreement\"] = {\"@id\": negotiation[\"agreement\"][\"@id\"]}", "new": "pass"},
   {"name": "missing agreement listed as an id", "file": "src/tc_mcp/tools/negotiation.py", "old": "if negotiation.get(\"agreement\"):", "new": "if True:"},
   {"name": "other schema keys dropped with the titles", "file": "src/tc_mcp/server.py", "old": "elif key != \"title\":", "new": "elif key not in (\"title\", \"description\"):"},
-  {"name": "listed transfers keep the presigned data address", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer.pop(\"dataAddress\", None)", "new": "pass"}
+  {"name": "listed transfers keep the presigned data address", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer.pop(\"dataAddress\", None)", "new": "pass"},
+  {"name": "listed audit events keep the snapshots", "file": "src/tc_mcp/tools/ops.py", "old": "if k not in SNAPSHOTS}", "new": "if True}"},
+  {"name": "listed audit events lose their error message", "file": "src/tc_mcp/tools/ops.py", "old": "SNAPSHOTS = {\n", "new": "SNAPSHOTS = {\n    \"errorMessage\",\n"},
+  {"name": "audit events without details get empty ones", "file": "src/tc_mcp/tools/ops.py", "old": "if event.get(\"details\"):", "new": "if \"details\" in event:"},
+  {"name": "consumer pid filter not sent", "file": "src/tc_mcp/tools/ops.py", "old": "params[\"details.consumerPid\"] = consumer_pid", "new": "pass"},
+  {"name": "consumer pid sent as a top-level field", "file": "src/tc_mcp/tools/ops.py", "old": "params[\"details.consumerPid\"] = consumer_pid", "new": "params[\"consumerPid\"] = consumer_pid"},
+  {"name": "snapshot ids not kept", "file": "src/tc_mcp/tools/ops.py", "old": "kept.setdefault(name, value)", "new": "pass"},
+  {"name": "snapshot id overrides the plain one", "file": "src/tc_mcp/tools/ops.py", "old": "kept.setdefault(name, value)", "new": "kept[name] = value"},
+  {"name": "agreement id not kept", "file": "src/tc_mcp/tools/ops.py", "old": "{\"agreementId\": record.get(\"@id\")} if key == \"agreement\" else {}", "new": "{}"},
+  {"name": "unreadable snapshot breaks the list", "file": "src/tc_mcp/tools/ops.py", "old": "except (TypeError, ValueError):\n            continue", "new": "except (TypeError, ValueError):\n            raise"},
+  {"name": "non-record snapshot breaks the list", "file": "src/tc_mcp/tools/ops.py", "old": "if not isinstance(record, dict):\n            continue", "new": "if False:\n            continue"},
+  {"name": "transfer diagnosis pages instead of filtering", "file": "src/tc_mcp/prompts.py", "old": "match = f\"consumer_pid=<its consumerPid>, {on}\"", "new": "match = f\"size=100, {on}\""},
+  {"name": "negotiation diagnosis filters by consumer pid", "file": "src/tc_mcp/prompts.py", "old": "match = f\"size=100, {on}\"", "new": "match = f\"consumer_pid=<its consumerPid>, {on}\""},
+  {"name": "failed move hint without the consumer pid filter", "file": "src/tc_mcp/tools/wait.py", "old": "consumer_pid=\"{consumer_pid}\", ", "new": ""}
 ]

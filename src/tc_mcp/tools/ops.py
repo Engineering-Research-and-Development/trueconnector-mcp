@@ -1,3 +1,4 @@
+import json
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -8,6 +9,35 @@ from tc_mcp.registry import registry
 from tc_mcp.tools.common import READ_ONLY, Page, PageNumber, PageSize, page_params, seg
 
 Instant = Annotated[str, Field(description="ISO-8601 instant, e.g. 2026-11-01T00:00:00Z")]
+
+# Details that hold a whole record as JSON text, as it was at the time of the event
+SNAPSHOTS = {
+    "agreement",
+    "offer",
+    "decision",
+    "contractNegotiation",
+    "contractNegotiationFromResponse",
+    "transferProcess",
+}
+
+
+def listed_details(details: dict[str, Any]) -> dict[str, Any]:
+    """Details without the snapshots, but with the ids that tie the event to its negotiation, transfer or agreement:
+    policy evaluations and negotiation requests carry them only inside a snapshot."""
+    kept = {k: v for k, v in details.items() if k not in SNAPSHOTS}
+    for key in SNAPSHOTS & details.keys():
+        try:
+            record = json.loads(details[key])
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(record, dict):
+            continue
+        ids = {"agreementId": record.get("@id")} if key == "agreement" else {}
+        ids |= {pid: record.get(pid) for pid in ("consumerPid", "providerPid")}
+        for name, value in ids.items():
+            if value:
+                kept.setdefault(name, value)
+    return kept
 
 
 async def get_dspace_version(ctx: Context, connector: str | None = None) -> Any:
@@ -41,14 +71,23 @@ async def list_audit_events(
         list[str] | None,
         Field(description="Event type codes, e.g. APPLICATION_LOGIN (see trueconnector://{connector}/audit/types)"),
     ] = None,
+    consumer_pid: str | None = None,
     page: PageNumber = 0,
     size: PageSize = 20,
     connector: str | None = None,
 ) -> Page:
     """This connector's audit events, newest first. Results show each event's type by its description ("Login");
-    filter by its code (APPLICATION_LOGIN)."""
+    filter by its code (APPLICATION_LOGIN).
+
+    `consumer_pid` keeps one negotiation's or transfer's events (TrueConnector matches details.consumerPid). Every
+    transfer event has it; policy evaluations and some negotiation events do not, so list those by event_type.
+    `details` leave out the record snapshots (agreement, offer, decision, contractNegotiation, transferProcess) but
+    keep their consumerPid, providerPid and agreementId; get_audit_event returns the full event.
+    """
     client = registry(ctx).get(connector)
     params = page_params(page, size)
+    if consumer_pid:
+        params["details.consumerPid"] = consumer_pid
     if event_type:
         # An unknown code is not an error to TrueConnector: it just matches nothing.
         codes = {t["code"] for t in await client.request("GET", "/api/v1/audit/types")}
@@ -58,7 +97,11 @@ async def list_audit_events(
                 f"{client.connector.name}/audit/types, e.g. APPLICATION_LOGIN for 'Login'"
             )
         params["eventType"] = event_type
-    return Page.model_validate(await client.request("GET", "/api/v1/audit", params=params))
+    listed = await client.request("GET", "/api/v1/audit", params=params)
+    for event in listed["items"]:
+        if event.get("details"):
+            event["details"] = listed_details(event["details"])
+    return Page.model_validate(listed)
 
 
 async def get_audit_event(ctx: Context, id: str, connector: str | None = None) -> Any:

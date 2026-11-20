@@ -178,7 +178,10 @@ async def test_diagnose_process_allows_only_read_tools(kind):
     assert f"get_{kind}" in allowed and "list_audit_events" in allowed
     assert all(annotations[name].read_only_hint for name in allowed), allowed
     assert f'get_{kind}(id="x1", connector="b")' in text
-    assert "details.consumerPid" in text
+    if kind == "transfer":  # every transfer event carries details.consumerPid: TrueConnector filters them
+        assert 'consumer_pid=<its consumerPid>, connector="b")' in text
+    else:  # some negotiation events name it only inside a snapshot: listed by type, matched in the results
+        assert 'size=100, connector="b")' in text and "details.consumerPid is this negotiation's" in text
     assert (negotiation.STATE_MACHINE if kind == "negotiation" else transfer.STATE_MACHINE) in text
     for code in FAILURE_EVENTS[kind]:
         assert f'"{code}"' in text

@@ -117,6 +117,10 @@ different values."""
             read = f'get_negotiation(id="{id}", {on}). Note its state, role, consumerPid and agreement["@id"] if set'
             counterpart = f'find_counterpart_negotiation(id="{id}", peer_connector=<the other connector>, {on})'
             checks, machine = NEGOTIATION_CHECKS, negotiation.STATE_MACHINE
+            # Policy evaluations and some state errors name the negotiation only inside a snapshot, which the
+            # consumer_pid filter does not search: list by type and match the consumerPid in the results.
+            match = f"size=100, {on}"
+            keep = "Keep the events whose details.consumerPid is this negotiation's consumerPid; their"
         else:
             reads = (
                 "get_transfer, find_transfer_for_agreement, list_audit_events, enforce_agreement, get_dataset_artifact"
@@ -130,6 +134,8 @@ different values."""
                 "connector=<the other connector>)"
             )
             checks, machine = TRANSFER_CHECKS, transfer.STATE_MACHINE
+            match = f"consumer_pid=<its consumerPid>, {on}"
+            keep = "The consumerPid is the same on both sides. Their"
         codes = ", ".join(f'"{c}"' for c in FAILURE_EVENTS[kind])
         return f"""Diagnose {kind} {id} on connector "{connector}". This is read-only: call only {reads}.
 Other tools named below are fixes to propose to me, never to run.
@@ -137,9 +143,8 @@ Other tools named below are fixes to propose to me, never to run.
 1. {read}.
 2. If the other side is one of this server's connectors (trueconnector://connectors), read its record:
    {counterpart}. Different states on the two sides mean a protocol message was lost or refused.
-3. Events: list_audit_events(event_type=[{codes}], size=100, {on}), and the same on the other side's connector
-   if configured. Keep the events whose details.consumerPid is this {kind}'s consumerPid; their description and
-   details (errorMessage, currentState, newState) say what went wrong.
+3. Events: list_audit_events(event_type=[{codes}], {match}), and the same on the other side's connector
+   if configured. {keep} description and details (errorMessage, currentState, newState) say what went wrong.
 4. If there is an agreement: enforce_agreement(agreement_id=<its id>, {on}).
 5. Check the known silent failures:
 {checks}

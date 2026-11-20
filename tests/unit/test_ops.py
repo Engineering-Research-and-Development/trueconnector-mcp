@@ -85,6 +85,85 @@ async def test_an_unknown_audit_code_is_refused_instead_of_matching_nothing():
     assert [r.url.path for r in fake.requests] == ["/api/v1/audit/types"]  # the list itself is never called
 
 
+async def test_listed_audit_events_leave_out_the_record_snapshots():
+    # Recorded on the live stack: a failed move and a login.
+    snapshot = (
+        '{"@type":"TransferProcess","consumerPid":"urn:uuid:abd7","providerPid":"urn:uuid:8c2c","state":"STARTED"}'
+    )
+    failed = {
+        "eventType": "Transfer failed",
+        "description": "Data transfer failed for process urn:uuid:9fc4",
+        "details": {
+            "consumerPid": "urn:uuid:abd7",
+            "providerPid": "urn:uuid:8c2c",
+            "role": "protocol",
+            "errorMessage": 'Error while making request: {"code":"Not Found"}',
+            "transferProcess": snapshot,
+        },
+        "id": "6aff223fe952d119fae8ed3b",
+    }
+    # A policy evaluation names its negotiation and agreement only inside its snapshots.
+    denied = {
+        "eventType": "Policy evaluation denied",
+        "description": "Access count exceeded",
+        "details": {
+            "operation": "enforceAgreement",
+            "agreement": '{"assigner":"urn:example:DataProviderA","permission":[],"@id":"urn:uuid:647b"}',
+            "contractNegotiation": '{"@type":"ContractNegotiation","consumerPid":"urn:uuid:349a","providerPid":'
+            '"urn:uuid:c7f9","state":"FINALIZED"}',
+            "decision": '{"allowed":false,"message":"Access count exceeded","policyType":"count"}',
+        },
+        "id": "6b0051aa",
+    }
+    login = {"eventType": "Login", "description": "User logged in successfully", "details": None, "id": "6b004e56"}
+    page = {"content": [failed, denied, login], "page": {"size": 20, "totalElements": 3, "totalPages": 1, "number": 0}}
+    fake = FakeConnector({("GET", "/api/v1/audit"): ok({"response": {"data": page}})})
+
+    result = await call(fake, "list_audit_events", connector="a")
+
+    kept = {k: v for k, v in failed["details"].items() if k != "transferProcess"}
+    ids = {"agreementId": "urn:uuid:647b", "consumerPid": "urn:uuid:349a", "providerPid": "urn:uuid:c7f9"}
+    assert result.structured_content["items"] == [
+        failed | {"details": kept},
+        denied | {"details": {"operation": "enforceAgreement"} | ids},
+        login,
+    ]
+
+
+async def test_a_snapshot_never_overrides_a_plain_id_or_breaks_the_list():
+    details = {
+        "consumerPid": "urn:uuid:plain",
+        "contractNegotiation": '{"consumerPid":"urn:uuid:snapshot","providerPid":"urn:uuid:p"}',
+        "transferProcess": "not json",
+        "offer": '["a list, not a record"]',
+    }
+    event = {"eventType": "Contract negotiation terminated", "details": details, "id": "6b00"}
+    page = {"content": [event], "page": {"size": 20, "totalElements": 1, "totalPages": 1, "number": 0}}
+    fake = FakeConnector({("GET", "/api/v1/audit"): ok({"response": {"data": page}})})
+
+    result = await call(fake, "list_audit_events", connector="a")
+
+    [listed] = result.structured_content["items"]
+    assert listed["details"] == {"consumerPid": "urn:uuid:plain", "providerPid": "urn:uuid:p"}
+
+
+async def test_consumer_pid_filters_on_the_event_details():
+    fake = FakeConnector({("GET", "/api/v1/audit/types"): ok(TYPES), ("GET", "/api/v1/audit"): ok(EMPTY_PAGE)})
+
+    result = await call(
+        fake, "list_audit_events", event_type=["TRANSFER_FAILED"], consumer_pid="urn:uuid:abd7", connector="a"
+    )
+
+    assert not result.is_error, result.content
+    [listed] = fake.calls("GET", "/api/v1/audit")
+    assert dict(listed.url.params) == {
+        "page": "0",
+        "size": "20",
+        "details.consumerPid": "urn:uuid:abd7",
+        "eventType": "TRANSFER_FAILED",
+    }
+
+
 async def test_audit_events_without_a_filter_skip_the_type_lookup():
     fake = FakeConnector({("GET", "/api/v1/audit"): ok(EMPTY_PAGE)})
 
