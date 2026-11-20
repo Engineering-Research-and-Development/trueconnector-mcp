@@ -67,7 +67,20 @@ async def test_list_transfers_maps_filters_to_api_fields():
         "datasetId": "urn:d",
         "format": "HttpData-PUSH",
     }
-    assert result.structured_content["items"] == [INITIALIZED]
+    assert result.structured_content["items"] == [{k: v for k, v in INITIALIZED.items() if k != "dataAddress"}]
+
+
+async def test_listed_transfers_leave_out_the_presigned_data_address():
+    link = "http://host.docker.internal:9000/bucket/data?X-Amz-Signature=secret"
+    address = {"endpoint": link, "endpointProperties": [{"name": "endpoint", "value": link}], "type": "DataAddress"}
+    completed = {**INITIALIZED, "state": "COMPLETED", "format": "HttpData-PULL", "dataAddress": address}
+    fake = FakeConnector({("GET", "/api/v1/transfers"): page_of(completed)})
+
+    result = await call(fake, "list_transfers", connector="a")
+
+    [listed] = result.structured_content["items"]
+    assert listed == {k: v for k, v in completed.items() if k != "dataAddress"}
+    assert "X-Amz-Signature" not in result.content[0].text
 
 
 @pytest.mark.parametrize("bad", [{"state": "started"}, {"role": "CONSUMER"}, {"format": "SFTP"}, {"size": 101}])

@@ -51,11 +51,18 @@ async def list_transfers(
     size: PageSize = 20,
     connector: str | None = None,
 ) -> Page:
-    """This connector's transfer processes, filtered by exact match."""
+    """This connector's transfer processes, filtered by exact match.
+
+    Items leave out `dataAddress` (a presigned link to the provider's data, used by the connectors themselves);
+    get_transfer returns the full record.
+    """
     params = page_params(
         page, size, state=state, role=role, agreement_id=agreement_id, dataset_id=dataset_id, format=format
     )
-    return Page.model_validate(await registry(ctx).get(connector).request("GET", "/api/v1/transfers", params=params))
+    listed = await registry(ctx).get(connector).request("GET", "/api/v1/transfers", params=params)
+    for transfer in listed["items"]:
+        transfer.pop("dataAddress", None)
+    return Page.model_validate(listed)
 
 
 async def get_transfer(ctx: Context, id: str, connector: str | None = None) -> Any:

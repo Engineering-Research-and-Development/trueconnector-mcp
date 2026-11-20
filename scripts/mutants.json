@@ -339,5 +339,6 @@
   {"name": "nested schemas keep titles", "file": "src/tc_mcp/server.py", "old": "out[key] = _untitled(value)", "new": "out[key] = value"},
   {"name": "listed agreements kept in full", "file": "src/tc_mcp/tools/negotiation.py", "old": "negotiation[\"agreement\"] = {\"@id\": negotiation[\"agreement\"][\"@id\"]}", "new": "pass"},
   {"name": "missing agreement listed as an id", "file": "src/tc_mcp/tools/negotiation.py", "old": "if negotiation.get(\"agreement\"):", "new": "if True:"},
-  {"name": "other schema keys dropped with the titles", "file": "src/tc_mcp/server.py", "old": "elif key != \"title\":", "new": "elif key not in (\"title\", \"description\"):"}
+  {"name": "other schema keys dropped with the titles", "file": "src/tc_mcp/server.py", "old": "elif key != \"title\":", "new": "elif key not in (\"title\", \"description\"):"},
+  {"name": "listed transfers keep the presigned data address", "file": "src/tc_mcp/tools/transfer.py", "old": "transfer.pop(\"dataAddress\", None)", "new": "pass"}
 ]
