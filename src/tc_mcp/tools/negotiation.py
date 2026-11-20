@@ -51,6 +51,7 @@ async def list_negotiations(
     """This connector's negotiations, newest first, filtered by exact match.
 
     An agreement is listed by its `@id` only, since its terms are the offer's; get_negotiation returns it in full.
+    To count negotiations (total, by state or role), use get_dashboard(view="negotiations") instead: one call.
     """
     params = page_params(
         page, size, state=state, role=role, consumer_pid=consumer_pid, provider_pid=provider_pid, assigner=assigner

@@ -55,6 +55,7 @@ async def list_transfers(
 
     Items leave out `dataAddress` (a presigned link to the provider's data, used by the connectors themselves);
     get_transfer returns the full record.
+    To count transfers (total, by state, role or format), use get_dashboard(view="transfers") instead: one call.
     """
     params = page_params(
         page, size, state=state, role=role, agreement_id=agreement_id, dataset_id=dataset_id, format=format
